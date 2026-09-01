@@ -280,13 +280,26 @@ const AFFIX={
  phase:{n:'相位',c:'#5fd0ff',hp:1.9,sp:1.2,dodge:.28,ai:'blink',d:'会闪避，并不断瞬移到你身边'},
 };
 const AFFIX_KEYS=Object.keys(AFFIX);
-/* one named heavy per region, on the wave before the stage boss */
+/* One named boss per region, the wave before the stage boss (region one: wave 3).
+   They used to be an ordinary unit with an affix, a scale and a health multiplier
+   -- a big grunt with a name. Each now has a KIT: its own attacks, its own tell,
+   and a specific way to punish it. The kits live in bosses.js. */
 const MINIBOSS={
- ring:   {base:'brute',   n:'铁颚 · 破障者', affix:'bulwark', hp:3.2, scale:1.35, scrap:78, xp:90},
- pillars:{base:'splitter',n:'蔓生母株',     affix:'revenant',hp:3.0, scale:1.4,  scrap:85, xp:95},
- open:   {base:'shield',  n:'霜髓卫士',     affix:'warden',  hp:3.2, scale:1.35, scrap:90, xp:100},
- forge:  {base:'jug',     n:'熔心',         affix:'volatile',hp:2.4, scale:1.25, scrap:110, xp:120},
- gate:   {base:'jug',     n:'深渊执政官',   affix:'berserk', hp:2.8, scale:1.3,  scrap:130, xp:140},
+ ring:   {base:'brute',   n:'铁颚 · 破障者', kit:'crusher', hp:2.6, scale:1.4, scrap:78, xp:90, armor:1.6,
+   hint:'直线冲撞 · 撞上掩体或墙会晕 3 秒并暴露弱点（伤害 ×2.5）',
+   desc:'锁定你之后蓄力 1 秒，沿红线直冲。撞到你或炮塔就是重创；把它引向石柱或场边，它会撞晕并暴露内核。'},
+ pillars:{base:'splitter',n:'蔓生母株',     kit:'brood',   hp:2.6, scale:1.45, scrap:85, xp:95,
+   hint:'不断孵化裂片 · 放孢子环 · 掉血到 2/3 和 1/3 会钻地换位并从地下炸出',
+   desc:'每隔几秒孵化裂片护住自己，周期性放出一圈孢子弹（从缝隙里穿过）。血量掉到关口就钻地，从别处带着根须炸出来——看地面的裂纹。'},
+ open:   {base:'shield',  n:'霜髓卫士',     kit:'warden',  hp:2.8, scale:1.4, scrap:90, xp:100,
+   hint:'立起冰柱挡子弹 · 冰柱在时护盾狂回 · 靠近就放霜爆 · 先打碎冰柱',
+   desc:'在它和你之间竖起三根冰柱，子弹打不穿，而且冰柱立着它的护盾就一直回。打碎冰柱（会冻住它旁边的杂兵），再用蓄力弹破盾。'},
+ forge:  {base:'jug',     n:'熔心',         kit:'magma',   hp:2.2, scale:1.3, scrap:110, xp:120, affix:'volatile',
+   hint:'走过留岩浆 · 陨石雨砸你脚下 · 死亡自爆，杀掉它就赶紧跑',
+   desc:'所到之处留下岩浆池，隔一阵对你周围砸四颗陨石（先出橙圈）。死时剧烈自爆，最后一击打完立刻冲刺离开。'},
+ gate:   {base:'jug',     n:'深渊执政官',   kit:'archon',  hp:2.5, scale:1.35, scrap:130, xp:140, affix:'berserk',
+   hint:'引力井把你拖向它再重击 · 会瞬移到你身侧 · 拖拽时反方向冲刺',
+   desc:'张开引力井把你往它身上拽，拽到就是一记重击；还会不停瞬移到你侧翼。看到紫圈就朝反方向冲刺。'},
 };
 
 /* ---------- field pickups: short-lived, worth running for ---------- */
@@ -320,9 +333,9 @@ function waveComp(w,wis,wlen,stage){
   const out=[]; const add=(t,n,g,d=0,o)=>out.push(Object.assign({t,n,g,d},o||{}));
   const isBoss = wis>=wlen;
   // Region one is five waves long, so a named heavy at wave 4 and the region boss
-  // at wave 5 put two heavies back to back in the tutorial region -- half of all
-  // measured runs ended right there. The champion joins from region two on.
-  const isMini = wlen>=3 && wis===wlen-1 && stage>=1;
+  // at wave 5 put two heavies back to back in the tutorial region. Region one's
+  // champion comes at wave 3 instead; everywhere else it is the wave before the boss.
+  const isMini = wlen>=3 && wis===(stage===0?wlen-2:wlen-1);
   if(isMini)add('__miniboss',1,0,2.5);          // the named heavy, one wave before the boss
   const el=eliteCount(w);
   if(el)add('__elite',el,2.2,3.5);

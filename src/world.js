@@ -329,8 +329,9 @@ function addTower(t){ const g=makeTower(t.key,t.lvl,t.elite);
 function refreshTower(t){ if(t.obj){scene.remove(t.obj);disposeTree(t.obj);} addTower(t); }
 function removeTower(t){ if(t.obj){scene.remove(t.obj);disposeTree(t.obj);t.obj=null;} }
 function addEnemy(e){ const g=makeEnemy(e.type); g.scale.multiplyScalar(e.scale||1);
-  if(e.affixDef){ const ring=makeEliteRing(e.affixDef.c,!!e.mini);
+  if(e.affixDef||e.mini){ const ring=makeEliteRing(e.affixDef?e.affixDef.c:'#ff3d8a',!!e.mini);
     ring.scale.setScalar(1/(e.scale||1)*(e.r/12)); g.add(ring); g.userData.eliteRing=ring; }
+  if(e.kit){ const trim=makeChampionTrim(e.kit,e.def.c); g.add(trim); g.userData.trim=trim; }
   // sappers carry a breaching torch -- you can pick them out of the pack before they
   // peel off, so intercepting is a decision instead of a surprise
   if(e.sapper){
@@ -367,6 +368,14 @@ function updateCorpses(dt){
     c.g.rotation.z=k*1.6;
     c.g.position.y=c.y0-k*.25;
   }
+}
+/* a prop raised mid-fight (the warden's ice pillars) */
+function addProp(o){
+  const g=makeProp(o.kind,o); g.position.set(WX(o.x),0,WZ(o.y)); boardGroup.add(g); o.obj=g;
+  g.userData.mats=[]; g.traverse(x=>{ if(x.isMesh&&x.material&&x.material.isMeshStandardMaterial){
+    x.material=x.material.clone(); g.userData.mats.push([x.material,x.material.emissive.clone(),x.material.emissiveIntensity]); } });
+  propObjs.push({g,seed:o.seed,float:g.userData.float,o});
+  g.scale.setScalar(.01); o.riseT=.4;
 }
 function removeProp(o){
   if(o.obj){ boardGroup.remove(o.obj); disposeTree(o.obj); o.obj=null; }
@@ -688,6 +697,7 @@ function frame(dt,now){
       if(p.g.userData.warnHalo)p.g.userData.warnHalo.material.opacity=.12+b*.22;
     }
     const o=p.o;
+    if(o&&o.riseT>0){ o.riseT-=dt; p.g.scale.setScalar(o.r*.95*Math.max(.01,1-o.riseT/.4)); }
     if(o&&p.g.userData.mats){
       const f=o.flash>0?o.flash/.14:0;
       const hurtGlow=o.hp<o.maxHp?(1-o.hp/o.maxHp)*.5:0;
@@ -732,6 +742,7 @@ function frame(dt,now){
   // elite rings
   for(const e of S.enemies){ const o=e.obj; if(!o)continue;
     if(o.userData.eliteRing)o.userData.eliteRing.rotation.y+=dt*1.1;
+    if(o.userData.trim){ const tr=o.userData.trim.userData; if(tr.r1)tr.r1.rotation.z+=dt*1.4; if(tr.r2)tr.r2.rotation.y-=dt*1.9; }
     const f=o.userData.torch;
     if(f){ const k=e.sapT?1:.55;                       // flares up once it has picked a target
       f.scale.setScalar(k*(.85+.3*Math.sin(S.time*11+e.seed)));
@@ -846,6 +857,6 @@ return {init,buildBoard,frame,pick,proj,
   get lights(){return L;},addTower,removeTower,refreshTower,addEnemy,removeEnemy,
   addShot,removeShot,addPlayer,initDropPool,setRange,setGhost,setSel,setAim,fit,
   addRift,removeRift,addSalvage,removeSalvage,updateLinks,removeProp,addHazardLate,removeHazard,
-  addPickup,removePickup,addCloud,removeCloud,scorch,
+  addPickup,removePickup,addCloud,removeCloud,scorch,addProp,
   get scene(){return scene;}, get cam(){return cam;}};
 })();

@@ -530,6 +530,8 @@ function applyStun(e,d){ if(e.def.noStun){applySlow(e,.5,d*1.6);return;} e.stun=
 /* ---------- damage ---------- */
 function hurt(e,amount,o={}){
   if(!e.alive)return 0;
+  if(e.buried>0)return 0;                        // underground: nothing reaches it
+  if(e.exposed>0){ amount*=2.5; o=Object.assign({},o,{pierceArmor:true}); }   // crashed: core laid bare
   if(e.dodge&&Math.random()<e.dodge){          // phase affix
     text(e.x,e.y,1+e.r/TILE,'闪避','#bfe4ff',12);
     burstFx(e.x,e.y,.5,'#5fd0ff',5,4,.09); return 0; }
@@ -655,6 +657,7 @@ function kill(e,src,byPlayer){
     const P=S.P;
     if(P.alive&&dist2(P.x,P.y,e.x,e.y)<(3.2*TILE)**2)hurtPlayer(28*atkScale(S.wave),null);
   }
+  if(e.kit&&typeof BossKit!=='undefined')BossKit.onDeath(e);
   if(e.mini){ log('★ 击杀 '+e.mini.n);
     spawnPickup(null,e.x,e.y); spawnPickup(null,e.x+TILE*1.2,e.y);
     toast(e.mini.n+' 被击杀 · 掉落补给','#ffc247'); }
@@ -756,11 +759,11 @@ function spawnEnemyAt(type,x,y,hpMulOverride,opt){
     type,def,x,y,vx:0,vy:0,face:0,
     hp:def.hp*hpMul,maxHp:def.hp*hpMul,hpMul,
     shield:(def.shield||0)*hpMul,maxShield:(def.shield||0)*hpMul,shieldT:0,
-    armor:def.armor*(1+S.wave*.016)*(A&&A.armor?A.armor:1),
+    armor:def.armor*(1+S.wave*.016)*(A&&A.armor?A.armor:1)*(MB&&MB.armor?MB.armor:1),
     sp:def.sp*spScale(S.wave)*(A&&A.sp?A.sp:1),curSp:def.sp,
     r:def.r*(MB?1.25:A?1.12:1),fly:!!def.fly,boss:!!def.boss||!!MB,
     scale:(def.scale||1)*(MB?MB.scale:A?1.18:1),
-    affix:opt&&opt.affix||null, affixDef:A, mini:MB, ai:(A&&A.ai)||null,
+    affix:opt&&opt.affix||null, affixDef:A, mini:MB, ai:(A&&A.ai)||null, kit:MB&&MB.kit||null,
     lungeCd:rnd(2), blinkCd:rnd(3),
     name:MB?MB.n:(A?A.n+'·'+def.name:def.name),
     atkMul:(A&&A.atk?A.atk:1), regenPct:(A&&A.regen?A.regen:0),
@@ -774,7 +777,9 @@ function spawnEnemyAt(type,x,y,hpMulOverride,opt){
     poise:0, poiseMax:def.hp*Math.pow(hpMul,.35)*(def.poiseFrac||.6), poiseBreaks:0, breakFlash:0, poiseHitT:0,
   };
   S.enemies.push(e); World.addEnemy(e);
-  if(MB){ sfx('boss'); shake(.55); banner('精英首领 · '+MB.n); log('⚑ '+MB.n+' 出现'); }
+  if(MB){ sfx('boss'); shake(.55); banner('精英首领 · '+MB.n); log('⚑ '+MB.n+' 出现');
+    if(MB.hint)toast(MB.n+' · '+MB.hint,'#ff8ac0');
+    if(typeof BossKit!=='undefined'&&e.kit)BossKit.init(e); }
   else if(def.boss){ sfx('boss'); shake(.7); banner('BOSS · '+def.name); }
   else if(A){ shock(x,y,.4,1.6,A.c,.6); sfx('hit',.7,.7); }
   return e;
@@ -977,6 +982,7 @@ function updateEnemy(e,dt){
   enemyRangedFire(e,dt);      // a mounted gun keeps working through a flinch
   if(e.surgeT>0)e.surgeT-=dt;
   if(e.def.phase2&&bossPhase(e,dt))return;
+  if(e.kit&&BossKit.update(e,dt))return;   // the kit owns this frame's movement
   if(e.stun>0){ e.curSp=0;
     if(Math.random()<dt*7)part(e.x,e.y,.5+rnd(.3),'#bfeaff',{sp:rnd(1.2,.3),el:1,life:.32,r:rnd(.08,.04),g:-1});
     return; }
@@ -2673,7 +2679,9 @@ function sim(dt){
     // standing around with an empty wallet is not a decision, it is a loading screen
     if(S.rest>4&&!S.pendingCards&&nothingToBuy())S.rest=4;
   }
-  for(const o of S.obstacles) if(o.flash>0)o.flash-=dt;
+  for(let i=S.obstacles.length-1;i>=0;i--){ const o=S.obstacles[i]; if(o.flash>0)o.flash-=dt;
+    if(o.temp!==undefined){ o.temp-=dt; if(o.temp<=0){ World.removeProp(o); S.obstacles.splice(i,1);
+      burstFx(o.x,o.y,.5,'#bfe4ff',10,4,.1); } } }
   for(const t of S.towers){ if(t.flash>0)t.flash-=dt; if(t.hitT>0)t.hitT-=dt;
     if(t.hp>=t.maxHp*.6)t.criedFor=0; }
   if(S.towerAlarm>0)S.towerAlarm-=dt;

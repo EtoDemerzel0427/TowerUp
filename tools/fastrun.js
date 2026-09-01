@@ -54,7 +54,19 @@ window.__fastRun=function(diffId,opts={}){
       let drop=null,dd0=1e9; for(const d of S.drops){ const dd=Math.hypot(d.x-P.x,d.y-P.y); if(dd<dd0){dd0=dd;drop=d;} }
       const rift=S.rifts.find(r=>r.alive);
       const slammer=S.enemies.find(e=>e.alive&&e.slamWarn>0&&Math.hypot(e.x-P.x,e.y-P.y)<(e.def.phase2.slamR+1)*TILE);
-      if(slammer){ const a=Math.atan2(P.y-slammer.y,P.x-slammer.x); tx=P.x+Math.cos(a)*TILE*5; ty=P.y+Math.sin(a)*TILE*5; if(P.dashCd<=0)S.keys.shift=true; }
+      // champion tells: a human reads these, so the bot has to as well or the
+      // numbers measure blindness, not difficulty
+      const champ=S.enemies.find(e=>e.alive&&e.kit&&e.k);
+      let dodge=null;
+      if(champ){ const k=champ.k, d=Math.hypot(champ.x-P.x,champ.y-P.y);
+        if(champ.kit==='crusher'&&(k.st==='wind'||k.st==='charge')){ const side=Math.sign(Math.sin(Math.atan2(P.y-champ.y,P.x-champ.x)-k.a))||1; const a=k.a+side*Math.PI/2; dodge={x:P.x+Math.cos(a)*TILE*4,y:P.y+Math.sin(a)*TILE*4,dash:k.st==='charge'&&d<6*TILE}; }
+        else if(champ.kit==='magma'&&k.meteors.length){ let mx=0,my=0; for(const m of k.meteors){mx+=m.x;my+=m.y;} mx/=k.meteors.length; my/=k.meteors.length; const a=Math.atan2(P.y-my,P.x-mx); dodge={x:P.x+Math.cos(a)*TILE*5,y:P.y+Math.sin(a)*TILE*5,dash:false}; }
+        else if(champ.kit==='archon'&&k.st==='well'){ const a=Math.atan2(P.y-champ.y,P.x-champ.x); dodge={x:P.x+Math.cos(a)*TILE*6,y:P.y+Math.sin(a)*TILE*6,dash:true}; }
+        else if(champ.kit==='warden'&&k.st==='nova'){ const a=Math.atan2(P.y-champ.y,P.x-champ.x); dodge={x:P.x+Math.cos(a)*TILE*5,y:P.y+Math.sin(a)*TILE*5,dash:d<3*TILE}; }
+        else if(champ.kit==='brood'&&k.st==='bury'&&Math.hypot(k.x1-P.x,k.y1-P.y)<3.5*TILE){ const a=Math.atan2(P.y-k.y1,P.x-k.x1); dodge={x:P.x+Math.cos(a)*TILE*4,y:P.y+Math.sin(a)*TILE*4,dash:false}; }
+      }
+      if(dodge){ tx=dodge.x; ty=dodge.y; if(dodge.dash&&P.dashCd<=0)S.keys.shift=true; }
+      else if(slammer){ const a=Math.atan2(P.y-slammer.y,P.x-slammer.x); tx=P.x+Math.cos(a)*TILE*5; ty=P.y+Math.sin(a)*TILE*5; if(P.dashCd<=0)S.keys.shift=true; }
       else if(c&&nd<3.2){ const a=Math.atan2(P.y-c.y,P.x-c.x); tx=P.x+Math.cos(a)*TILE*4; ty=P.y+Math.sin(a)*TILE*4; }
       else if(drop&&dd0<7*TILE&&nd>2.5){ tx=drop.x; ty=drop.y; }
       else if(rift&&(!c||c.n<6)){ const a=Math.atan2(rift.y-P.y,rift.x-P.x); tx=rift.x-Math.cos(a)*TILE*7; ty=rift.y-Math.sin(a)*TILE*7; }

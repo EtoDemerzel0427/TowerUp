@@ -249,7 +249,7 @@ function makeTower(key,lvl,elite){
   }
   if(elite!=null)eliteCrown(g,d.c);
   g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;
-    if(o.material.isMeshStandardMaterial){o.material=o.material.clone();rimLight(o.material,d.c,.55,3.0);}}});
+    if(o.material.isMeshStandardMaterial){o.material=o.material.clone();rimLight(o.material,d.c,.4,3.0);}}});
   return g;
 }
 
@@ -474,7 +474,7 @@ function makeEnemy(type){
   g.scale.setScalar(1.48);
   g.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=false;
     if(o.material.isMeshStandardMaterial){o.material=o.material.clone();
-      rimLight(o.material,d.c,d.boss?1.8:1.4,2.3);} } });
+      rimLight(o.material,d.c,d.boss?1.0:.72,2.8);} } });
   return g;
 }
 
@@ -550,7 +550,7 @@ function makePlayer(){
   const halo=new THREE.Mesh(geo('plh',()=>new THREE.SphereGeometry(.46,12,10)),glowMat(GL,.05));
   halo.position.y=.42; g.add(halo);
   g.traverse(o=>{if(o.isMesh){o.castShadow=true;
-    if(o.material.isMeshStandardMaterial){o.material=o.material.clone();rimLight(o.material,GL,1.3,2.2);}}});
+    if(o.material.isMeshStandardMaterial){o.material=o.material.clone();rimLight(o.material,GL,.9,2.5);}}});
   return g;
 }
 
@@ -611,7 +611,7 @@ function makeCore(){
       Math.cos(a)*(CORE.r+.28),.6,Math.sin(a)*(CORE.r+.28)); pylons.add(p); }
   g.add(pylons);
   g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;
-    if(o.material.isMeshStandardMaterial){o.material=o.material.clone();rimLight(o.material,C,.7,2.8);}}});
+    if(o.material.isMeshStandardMaterial){o.material=o.material.clone();rimLight(o.material,C,.5,2.8);}}});
   return g;
 }
 
@@ -1028,6 +1028,38 @@ function makePickup(kind){
     glowMat(D.c,.07,THREE.DoubleSide));
   beam.position.y=1.3; g.add(beam);
   g.traverse(o=>{if(o.isMesh)o.castShadow=false;});
+  return g;
+}
+/* ---------- champion trim: a silhouette you can pick out of the pack ---------- */
+function makeChampionTrim(kit,col){
+  const g=new THREE.Group();
+  const em=(c,i)=>mat(c,{em:c,ei:i,metal:.6,rough:.3,flat:true});
+  if(kit==='crusher'){        // a battering wedge and twin exhaust stacks
+    const ram=m3(geo('ch_ram',()=>lathe([[0,0],[.34,.05],[.26,.34],[.1,.5],[0,.52]],6)),mat('#c9b48a',{metal:.9,rough:.2,flat:true}),.42,.42,0);
+    ram.rotation.z=-Math.PI/2; g.add(ram);
+    for(const sd of [-1,1]){ const st=m3(geo('ch_st',()=>new THREE.CylinderGeometry(.05,.07,.36,6)),mat('#2b3252',{metal:.7}),-.18,.72,sd*.16); g.add(st);
+      const fl=new THREE.Mesh(geo('ch_fl',()=>new THREE.ConeGeometry(.07,.22,6)),glowMat('#ff8a3a',.8)); fl.position.set(-.18,.98,sd*.16); g.add(fl); }
+    const eye=m3(geo('ch_eye',()=>new THREE.BoxGeometry(.05,.07,.3)),em('#ff4d5e',3.2),.22,.62,0); g.add(eye);
+  } else if(kit==='brood'){   // egg sacs hanging off the shell
+    for(let i=0;i<5;i++){ const a=i/5*TAU; const p=m3(geo('ch_pod',()=>new THREE.SphereGeometry(.11,8,6)),
+        mat('#ffbe7a',{em:'#ffbe7a',ei:1.4,trans:true,op:.85,rough:.2}),Math.cos(a)*.36,.24+Math.sin(i*2.3)*.1,Math.sin(a)*.36); g.add(p); }
+    const crown=m3(geo('ch_cr',()=>new THREE.TorusGeometry(.3,.03,6,18)),em(col,1.6),0,.7,0); crown.rotation.x=Math.PI/2; g.add(crown);
+  } else if(kit==='warden'){  // ice crystals on the shoulders and a frozen halo
+    for(const sd of [-1,1]) for(let i=0;i<2;i++){ const c=m3(geo('ch_ice',()=>new THREE.ConeGeometry(.08,.42,5)),
+        mat('#bfe4ff',{em:'#7fc8ff',ei:1.1,trans:true,op:.85,rough:.1}),-.06+i*.12,.5,sd*(.22+i*.06)); c.rotation.set(sd*.5,0,(i-.5)*.4); g.add(c); }
+    const halo=m3(geo('ch_hl',()=>new THREE.TorusGeometry(.42,.02,6,24)),em('#8fd0ff',1.4),0,.72,0); halo.rotation.x=Math.PI/2; g.add(halo);
+  } else if(kit==='magma'){   // cracked-open hull glowing from inside
+    const cr=new THREE.LineSegments(geo('ch_crk',()=>new THREE.EdgesGeometry(new THREE.BoxGeometry(.7,.42,.56))),
+      new THREE.LineBasicMaterial({color:new THREE.Color('#ff7a2a'),transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+    cr.position.y=.44; g.add(cr);
+    const heart=m3(geo('ch_ht',()=>new THREE.IcosahedronGeometry(.16,0)),em('#ff5a20',3),0,.98,0); g.add(heart);
+    const gl=new THREE.Mesh(geo('ch_hg',()=>new THREE.SphereGeometry(.3,10,8)),glowMat('#ff7a2a',.14)); gl.position.y=.98; g.add(gl);
+  } else if(kit==='archon'){  // two counter-rotating void rings and a crown of shards
+    const r1=m3(geo('ch_r1',()=>new THREE.TorusGeometry(.62,.028,6,32)),em('#b06cff',1.8),0,.7,0); r1.rotation.x=Math.PI/2.4;
+    const r2=r1.clone(); r2.rotation.set(Math.PI/2,0,Math.PI/3); g.add(r1,r2); g.userData.r1=r1; g.userData.r2=r2;
+    for(let i=0;i<5;i++){ const a=i/5*TAU; const sh=m3(geo('ch_sh',()=>new THREE.OctahedronGeometry(.09,0)),em('#d0a0ff',2.2),Math.cos(a)*.3,1.15,Math.sin(a)*.3); g.add(sh); }
+  }
+  g.traverse(o=>{ if(o.isMesh)o.castShadow=false; });
   return g;
 }
 /* ---------- elite marker ring ---------- */

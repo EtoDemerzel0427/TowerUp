@@ -603,7 +603,8 @@ function renderWavePrev(){
     if(t==='__elite')
       return '<span class="wpi elite"><i style="background:#ffc247"></i>精英怪 <b>×'+n+'</b></span>';
     if(t==='__miniboss')
-      return '<span class="wpi elite"><i style="background:#ff3d8a"></i>'+mb.n+' <b>×'+n+'</b></span>';
+      return '<span class="wpi elite" title="'+(mb.hint||'')+'"><i style="background:#ff3d8a"></i>'+mb.n+' <b>×'+n+'</b></span>'+
+        (mb.hint?'<div class="wphint">'+mb.hint+'</div>':'');
     const E=ENEMIES[t]; if(!E)return '';
     return '<span class="wpi"><i style="background:'+E.c+'"></i>'+E.name+' <b>×'+n+'</b></span>';
   }).join('');
@@ -1102,6 +1103,7 @@ function helpRows(){
     '<div><b>精英</b>：带词缀的、名字带前缀的、以及首领和 BOSS，受到<u>炮塔伤害只有 45%</u>。杂兵交给炮塔，有名字的东西得你自己打。</div>'+
     '<div><b>裂隙</b>：每波会开若干道裂隙，<u>只有你的子弹和轨道轰炸能伤害它</u>。开着的裂隙会周期性<u>涌潮</u>：预警 2.6 秒后一口气涌出一整群，'+
       '炮塔线吃不下这种尖峰，你得去顶。关掉它涌潮就停，并累积「据点扩建」，2 / 4 / 6 道各永久 +1 炮塔位。</div>'+
+    '<div><b>区域首领</b>：每区一个具名首领，各有招式与破解：铁颚撞上掩体会晕并暴露弱点；蔓生母株钻地前后看地面裂纹；霜髓卫士先打碎冰柱；熔心的橙圈是陨石落点；执政官的引力井要反向冲刺。出场时的提示会写明。</div>'+
     '<div><b>BOSS 二阶段</b>：区域 BOSS 与攻城巨兽掉到半血会狂暴：更快、齐射更多，并会<u>震地</u>——脚下先出现粉色预警圈，圈没消失前冲刺出去。</div>'+
     '<div><b>炮塔上限</b>：每个区域能同时拥有的炮塔数是固定的（第一区 4 座，逐区递增）。变强靠<u>升级和改造</u>，不是靠数量。</div>'+
     '<div><b>残骸</b>：站着不动 2.9 秒拆解。拆解期间会张开护场——<u>你受到的伤害减半</u>，'+
