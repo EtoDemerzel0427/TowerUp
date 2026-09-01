@@ -2076,7 +2076,11 @@ function updateRifts(dt){
     }
     // an exhausted rift folds on its own so a wave can always end
     if(!r.queue.length&&r.overLeft<=0&&r.overflowing){
-      r.overflowing=false; log('裂隙枯竭 · 已停止涌出');
+      r.overflowing=false;
+      r.alive=false; World.removeRift(r);
+      log('裂隙枯竭 · 自行坍缩');
+      burstFx(r.x,r.y,.9,'#7a4a6a',22,6,.16); shock(r.x,r.y,.3,2.4,'#7a4a6a',.5);
+      continue;
     }
     const busy=r.queue.length||r.overLeft>0;
     if(Math.random()<dt*(busy?26:10)){ const a=rnd(TAU),d=rnd(RIFT.r*TILE);
@@ -2084,7 +2088,11 @@ function updateRifts(dt){
         {sp:rnd(1.4,.3),el:1.2,life:.8,r:.09,g:-1.6}); }
   }
 }
-function riftsPending(){ return S.rifts.some(r=>r.alive&&r.queue.length); }
+/* still-scheduled spawns only -- used by the attrition backstop, which must be able
+   to fire even while a rift is trickling, or it could never break a stall */
+function riftsScripted(){ return S.rifts.some(r=>r.alive&&r.queue.length); }
+/* what actually holds a wave open: a rift you have not closed is still a source */
+function riftsPending(){ return S.rifts.some(r=>r.alive&&(r.queue.length||r.overLeft>0)); }
 
 /* ---------- salvage: stand still to strip it ---------- */
 function spawnSalvage(){
@@ -2167,7 +2175,7 @@ function updateSalvage(dt){
    Either you kill them or they reach the Core. Both are endings; a stall is not. */
 const PURGE_IDLE=9, PURGE_ARMOR=3.0;
 function updatePurge(dt){
-  if(riftsPending()){ S.purge=0; return; }
+  if(riftsScripted()){ S.purge=0; return; }
   const live=S.enemies.filter(e=>e.alive);
   if(!live.length){ S.purge=0; return; }
   if(S.time-(S.lastKill||0)<PURGE_IDLE){
