@@ -97,8 +97,9 @@ const Tutor = (function(){
       done(){ return c.dashes>=1; } },
 
     { t:'自动瞄准与开火',
-      d:()=>'枪口会<u>自己锁定</u>最近的敌人，你不用调方向。<u>按住</u> '+kb(K().fire)+' 连射。'+
-            (touch()?'手机上默认<u>连瞄带打全自动</u>，不用管右半屏。':'（HUD 上的 ⊙ 可开自动开火，开了连扳机都不用按）'),
+      d:()=>'枪口会<u>自己锁定</u>最近的敌人<u>并自动开火</u>——不用按扳机，走位就行。'+
+            (touch()?'手机上也一样，右半屏只是可选的手动瞄准。'
+                    :'想要更高射速时按住 '+kb(K().fire)+' 强制连射（会打到过热）；按 '+kb('O')+'（或 HUD 的 ⊙）可关掉自动开火。'),
       hint:'消灭 3 个目标',
       amb:{n:3,pool:['grunt','runner'],hp:1.3,every:2.6},
       setup(){ wipe(); for(let n=0;n<3;n++)dummy('grunt',6+n,n*2.1,null,.5); },
@@ -115,15 +116,20 @@ const Tutor = (function(){
     { t:'蓄力重击 · 破甲',
       d:()=>'这只<u>重装兵护甲很厚</u>，普通子弹只能打出 15% 伤害（会跳「护甲」两个字）。'+
             '按住 '+kb(K().charge)+' 蓄力、松手发射——重击<u>完全无视护甲</u>。'+
+            '<u>这一步先关掉自动开火</u>，让你把这一发打出来。'+
             '这个键<u>不随布局改变</u>，'+kb(K().charge2)+' 也一样能用。'+
             (touch()?'手机上是「蓄力」键。':''),
       hint:'用蓄力重击打掉它',
       // deliberately no ambient here: auto-aim locks the nearest enemy, so a stray
       // swarm unit stole every charge shot and the armoured target never took a hit
+      // the barrel pulls its own trigger everywhere else, and 2.4 chip damage a shot
+      // grinds this thing down in about ten seconds -- long enough to read the card
+      // and lose the target before ever charging. This one step takes the trigger back.
+      noAuto:true,
       setup(){ wipe(); Tutor._brute=makeBrute(); },
       tick(){ if(c.heavy<1 && Tutor._brute && !Tutor._brute.alive){
         Tutor._brute=makeBrute();          // it can be ground down by the Core; replace it
-        toast('目标已被核心炮台清除 · 换一只重装兵','#8d96bd'); } },
+        toast('目标已被清除 · 换一只重装兵','#8d96bd'); } },
       done(){ return c.heavy>=1 && Tutor._brute && !Tutor._brute.alive; } },
 
     { t:'建造炮塔',
@@ -254,6 +260,8 @@ const Tutor = (function(){
 
   return {
     get active(){ return active; },
+    /* a step can suspend auto-fire when the lesson IS pulling the trigger yourself */
+    get noAuto(){ return active && !!STEPS[i].noAuto; },
     start(){
       active=true; started=true; i=0;
       S.tutorial=true;

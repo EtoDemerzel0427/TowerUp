@@ -13,7 +13,7 @@ const S={
   beams:[], shocks:[], magma:[], obstacles:[],
   queue:[], build:null, sel:null, refitT:null, aim:null, shake:0, flash:0, combo:0, comboT:0,
   kills:0, earned:0, abil:{}, overT:0, overArmed:false, sound:true, best:0, layout:'right',
-  lastKill:0, purge:0, armorHint:false, autoFire:false, fineHint:false,
+  lastKill:0, purge:0, armorHint:false, autoFire:true, fineHint:false,
   slotEarned:0, riftProgress:0, riftsClosed:0,
   usedTowerCycle:false, usedRefitKey:false,
   level:1, xp:0, xpNeed:0, cards:null, pendingCards:0, playerLives:3, pickT:0,

@@ -1548,12 +1548,19 @@ function updatePlayer(dt){
   }
   P.fine=KM.fine;
 
-  /* Two thumbs cannot steer, aim and ration heat at the same time. The barrel
-     already tracks the best target by itself, so on touch it pulls its own trigger
-     as well: the left stick is movement, the right stick is an optional override.
-     It stops short of overheating so the charge shot is always available. */
+  /* The barrel already tracks the best target by itself, so it pulls its own
+     trigger too -- holding the fire key for a whole run is just fatigue, not a
+     decision. It stops short of overheating so the charge shot is always
+     available; the fire key is still there as a manual override that WILL run
+     the barrel into overheat when you want the extra rate.
+     Rifts count: they are player-only damage and cycling onto one and getting
+     silence would read as the auto-fire being broken. Scenery does not -- half
+     the props leave a lava pool or cook off when they break, and blowing up the
+     crate you were standing behind is not something to do unasked. */
+  const autoK = P.lock && (P.lock.k==='enemy'||P.lock.k==='rift');
   const autoFire = S.autoFire!==false && !P.charging &&
-                   P.lock && targetValid(P.lock) && P.lock.k==='enemy' &&
+                   !(typeof Tutor!=='undefined' && Tutor.noAuto) &&
+                   autoK && targetValid(P.lock) &&
                    P.heat < st.heatMax*.88 && P.overheat<=0;   // headroom left for 蓄力
   const aiming=KM.fire||(T.on&&T.aim.act&&T.aim.m>.35)||autoFire;
   if(KM.dash&&!P.dashLatch)dash();

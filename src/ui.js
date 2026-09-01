@@ -620,6 +620,13 @@ function log(s){ logs.unshift(s); if(logs.length>6)logs.pop();
   el.log.innerHTML=logs.map(x=>'<div>'+x+'</div>').join(''); }
 function flashMsg(s){ log('⚠ '+s); }
 function saveLayout(){ try{localStorage.setItem('abyss2_layout',S.layout);}catch(e){} }
+/* auto-fire is on out of the box -- holding the trigger for a 30-wave run is
+   fatigue, not skill. Anyone who turns it off keeps it off across sessions. */
+function saveAuto(){ try{localStorage.setItem('abyss2_autofire',S.autoFire?'1':'0');}catch(e){} }
+function loadAuto(){
+  try{ const v=localStorage.getItem('abyss2_autofire'); S.autoFire=(v===null)?true:v==='1'; }
+  catch(e){ S.autoFire=true; }
+}
 function loadLayout(){
   try{
     // one-time migration: the old default put movement on the arrows and gave WASD
@@ -836,7 +843,6 @@ function bindTouch(){
   const ui=$('touchUI');
   if(!isTouch())return;
   S.touch.on=true; ui.classList.remove('hide');
-  S.autoFire=true;   // no keyboard trigger here, so the barrel fires for you
   const board=document.getElementById('board');
   S.touch.r=stickRadius();
   addEventListener('resize',()=>{S.touch.r=stickRadius();});
@@ -949,6 +955,7 @@ function bindInput(){
     if(k==='p'){ togglePause(); return; }
     if(k==='tab'){ cycleSpeed(); return; }
     if(k==='m'){ toggleSound(); return; }
+    if(k==='o'){ toggleAuto(); return; }
     if(k==='h'||k==='?'||k==='/'){ toggleHelp(); return; }
     if(k===','){ toggleLayout(); return; }
     const n=parseInt(k,10);
@@ -1010,8 +1017,9 @@ function helpRows(){
     row(['—'],'血量归零会损失一条命，5 秒后在核心旁重新部署'),
   ]);
   const fightSec=sec('战斗',[
-    row([L.fire],'开火（按住连射）· 枪口<u>自动锁定</u>最近的敌人'),
-    row(['⊙'],'HUD 上的自动开火开关 · 开启后锁到敌人就自己射，不必按住'+(touch?'（手机默认开）':'（键盘默认关）')),
+    row(['—'],'<u>默认自动开火</u> · 枪口自动锁定最近的敌人并开火，你只管走位'),
+    row([L.fire],'手动扳机 · 按住＝强制连射，<u>会一直打到过热</u>（自动开火会留余量给蓄力）· 打掩体也用它'),
+    row(['O'],'开关自动开火 · HUD 上的 <b>⊙</b> 是同一个开关，关掉就回到全手动'+(touch?'':'（设置会记住）')),
     row(L.turn.split('/').map(x=>x.trim()),'切换锁定目标'),
     row([L.charge],'蓄力重击 · 按住蓄力、松手发射，<u>无视护甲</u>，破重甲专用 · '+
       '<u>此键不随布局改变</u>（'+L.charge2+' 同样可用）'),
@@ -1125,9 +1133,9 @@ function togglePause(){ if(S.cards)return;
 function cycleSpeed(){S.speed=S.speed===1?2:S.speed===2?3:1;el.bSpeed.textContent='×'+S.speed;
   el.bSpeed.classList.toggle('on',S.speed>1);}
 function toggleSound(){S.sound=!S.sound;el.bSound.classList.toggle('on',S.sound);el.bSound.textContent=S.sound?'♪':'✕';}
-function toggleAuto(){ S.autoFire=!S.autoFire;
+function toggleAuto(){ S.autoFire=!S.autoFire; saveAuto();
   const b=$('bAuto'); if(b){ b.classList.toggle('on',S.autoFire); b.textContent=S.autoFire?'⊙':'⊘'; }
-  toast(S.autoFire?'自动开火：开 · 锁定目标后自动射击':'自动开火：关 · 按住 '+layoutHint().fire+' 开火',
+  toast(S.autoFire?'自动开火：开 · 锁定敌人／裂隙后自动射击':'自动开火：关 · 需按住 '+layoutHint().fire+' 开火',
         S.autoFire?'#6ee7a8':'#8d96bd'); renderTips(); }
 
 
@@ -1162,17 +1170,17 @@ function miniPreview(canvas,m){
     x.beginPath();x.arc(w/2+Math.cos(a)*w*.47,h/2+Math.sin(a)*h*.45,2.2,0,TAU);x.fill();}
 }
 const LAYOUTS=[
- {id:'right',n:'方向键移动（默认）',d:'方向键移动 · 自动跟枪 · A/D 换目标 · W 蓄力 · S 自由瞄准'},
- {id:'left', n:'WASD 移动',        d:'WASD 移动 · 自动跟枪 · ←/→ 换目标 · ↑ 蓄力 · ↓ 自由瞄准'},
+ {id:'right',n:'方向键移动（默认）',d:'方向键移动 · 自动开火 · A/D 换目标 · W 蓄力 · S 自由瞄准'},
+ {id:'left', n:'WASD 移动',        d:'WASD 移动 · 自动开火 · ←/→ 换目标 · ↑ 蓄力 · ↓ 自由瞄准'},
 ];
 function renderTips(){
   const L=layoutHint();
   el.tipBox.innerHTML=
     '<div><b>'+L.move+'</b> 移动 · <b>Shift</b> 冲刺（带无敌帧）</div>'+
     (S.autoFire
-      ? '<div><b>自动瞄准并开火</b>：只管走位，枪口会自己锁敌开火（HUD 的 <b>⊙</b> 可关闭）</div>'
-        +'<div><b>'+L.turn+'</b> 换目标 · <b>'+L.fire+'</b> 按住＝强制连射（可打到过热）</div>'
-      : '<div><b>自动跟枪</b>：枪口对准当前目标 · <b>'+L.turn+'</b> 换目标（HUD 的 <b>⊙</b> 开自动开火）</div>'
+      ? '<div><b>自动瞄准并开火</b>：只管走位，枪口会自己锁敌开火（<b>O</b> 或 HUD 的 <b>⊙</b> 可关闭）</div>'
+        +'<div><b>'+L.turn+'</b> 换目标 · <b>'+L.fire+'</b> 按住＝强制连射（可打到过热，也用来打掩体）</div>'
+      : '<div><b>自动跟枪</b>：枪口对准当前目标 · <b>'+L.turn+'</b> 换目标（<b>O</b> 或 HUD 的 <b>⊙</b> 可开启）</div>'
         +'<div><b>'+L.fire+'</b> 开火（按住连射）</div>')+
     '<div><b>'+L.fine+'</b> 按住＝自由瞄准 · <b>'+L.charge+'</b> 蓄力重击（无视护甲）</div>'+
     '<div><b>Q</b> 歼灭光束（造成伤害充能，满了可释放）</div>'+
@@ -1220,7 +1228,7 @@ function showTutorialDone(){
   const k=s=>'<b>'+s+'</b>';
   const learned=[
     ['移动与冲刺', L.move+' 走位 · Shift 冲刺带无敌帧'],
-    ['自动跟枪', '枪口自己锁敌 · '+L.turn+' 换目标 · '+L.fire+' 开火'],
+    ['自动开火', '枪口自己锁敌开火 · '+L.turn+' 换目标 · '+L.fire+' 强制连射'],
     ['蓄力破甲', L.charge+' 按住蓄力，重击无视护甲'],
     ['炮塔', '1–8 选型号 · E 建造 · R 升级 · [ ] 选中 · V 改造 · T 出售'],
     ['技能与大招', 'Z X C 三个战术技能 · Q 歼灭光束'],
@@ -1332,7 +1340,7 @@ function endGame(win){
 
 /* ---------- boot ---------- */
 function boot(){
-  World.init(); World.initDropPool(); loadLayout();
+  World.init(); World.initDropPool(); loadLayout(); loadAuto();
   S.st=freshStats(); S.P=newPlayer();
   S.obstacles=buildArena(pickMap);
   S.hazards=buildHazards(pickMap,S.obstacles);
