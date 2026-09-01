@@ -1391,9 +1391,9 @@ function updatePlayer(dt){
      already tracks the best target by itself, so on touch it pulls its own trigger
      as well: the left stick is movement, the right stick is an optional override.
      It stops short of overheating so the charge shot is always available. */
-  const autoFire = T.on && S.autoFire!==false && !P.charging &&
+  const autoFire = S.autoFire!==false && !P.charging &&
                    P.lock && targetValid(P.lock) && P.lock.k==='enemy' &&
-                   P.heat < st.heatMax*.82 && P.overheat<=0;
+                   P.heat < st.heatMax*.88 && P.overheat<=0;   // headroom left for 蓄力
   const aiming=KM.fire||(T.on&&T.aim.act&&T.aim.m>.35)||autoFire;
   if(KM.dash&&!P.dashLatch)dash();
   P.dashLatch=KM.dash;

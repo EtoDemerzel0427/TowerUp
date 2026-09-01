@@ -563,7 +563,17 @@ function log(s){ logs.unshift(s); if(logs.length>6)logs.pop();
   el.log.innerHTML=logs.map(x=>'<div>'+x+'</div>').join(''); }
 function flashMsg(s){ log('⚠ '+s); }
 function saveLayout(){ try{localStorage.setItem('abyss2_layout',S.layout);}catch(e){} }
-function loadLayout(){ try{S.layout=localStorage.getItem('abyss2_layout')||'right';}catch(e){} }
+function loadLayout(){
+  try{
+    // one-time migration: the old default put movement on the arrows and gave WASD
+    // four separate aiming jobs, which is backwards from what anyone expects
+    if(!localStorage.getItem('abyss2_layout_v2')){
+      localStorage.setItem('abyss2_layout_v2','1');
+      localStorage.setItem('abyss2_layout','left');
+    }
+    S.layout=localStorage.getItem('abyss2_layout')||'left';
+  }catch(e){ S.layout='left'; }
+}
 function toggleLayout(){ S.layout=S.layout==='right'?'left':'right'; saveLayout();
   const L=layoutHint(); log('操作布局：'+L.move+' 移动 · '+L.turn+' 旋转 · '+L.fire+' 开火'); renderTips(); }
 function bestKey(){return 'abyss2_best_'+S.map.id+'_'+S.diff.id;}
@@ -837,6 +847,7 @@ function bindInput(){
     if(k==='p'){ togglePause(); return; }
     if(k==='tab'){ cycleSpeed(); return; }
     if(k==='m'){ toggleSound(); return; }
+    if(k==='f'){ toggleAuto(); return; }
     if(k===','){ toggleLayout(); return; }
     const n=parseInt(k,10);
     if(n>=1&&n<=8){const key=TKEYS.find(x=>TOWERS[x].hotkey===n);if(key)selectBuild(key);return;}
@@ -852,6 +863,7 @@ function bindInput(){
   el.bPause.onclick=togglePause;
   el.bSound.onclick=toggleSound;
   el.bLayout.onclick=toggleLayout;
+  const ab=$('bAuto'); if(ab){ ab.onclick=toggleAuto; ab.classList.toggle('on',S.autoFire); }
 }
 /* step the selection through your turrets so R / T can act on one from anywhere */
 function cycleTowerSel(dir){
@@ -868,6 +880,10 @@ function togglePause(){ if(S.cards)return;
 function cycleSpeed(){S.speed=S.speed===1?2:S.speed===2?3:1;el.bSpeed.textContent='×'+S.speed;
   el.bSpeed.classList.toggle('on',S.speed>1);}
 function toggleSound(){S.sound=!S.sound;el.bSound.classList.toggle('on',S.sound);el.bSound.textContent=S.sound?'♪':'✕';}
+function toggleAuto(){ S.autoFire=!S.autoFire;
+  const b=$('bAuto'); if(b){ b.classList.toggle('on',S.autoFire); b.textContent=S.autoFire?'⊙':'⊘'; }
+  toast(S.autoFire?'自动开火：开 · 锁定目标后自动射击':'自动开火：关 · 按住空格开火',
+        S.autoFire?'#6ee7a8':'#8d96bd'); renderTips(); }
 
 
 function buildAbilities(){
@@ -901,16 +917,19 @@ function miniPreview(canvas,m){
     x.beginPath();x.arc(w/2+Math.cos(a)*w*.47,h/2+Math.sin(a)*h*.45,2.2,0,TAU);x.fill();}
 }
 const LAYOUTS=[
- {id:'right',n:'右手移动（默认）',d:'方向键移动 · A/D 切换目标 · 空格开火 · W 蓄力 · S 自由瞄准'},
- {id:'left', n:'左手移动',        d:'WASD 移动 · ←/→ 切换目标 · 空格开火 · ↑ 蓄力 · ↓ 自由瞄准'},
+ {id:'left', n:'WASD 移动（默认）',d:'WASD 移动 · 自动瞄准并开火 · ←/→ 换目标 · ↑ 蓄力'},
+ {id:'right',n:'方向键移动',      d:'方向键移动 · 自动瞄准并开火 · A/D 换目标 · W 蓄力'},
 ];
 function renderTips(){
   const L=layoutHint();
   el.tipBox.innerHTML=
     '<div><b>'+L.move+'</b> 移动 · <b>Shift</b> 冲刺（带无敌帧）</div>'+
-    '<div><b>自动跟枪</b>：枪口始终对准当前目标 · <b>'+L.turn+'</b> 切换目标</div>'+
-    '<div><b>'+L.fine+'</b> 按住＝自由瞄准（手动转向，打特定位置用）</div>'+
-    '<div><b>'+L.fire+'</b> 开火（按住连射）· <b>'+L.charge+'</b> 蓄力重击（无视护甲）</div>'+
+    (S.autoFire
+      ? '<div><b>自动瞄准并开火</b>：只管走位，枪口会自己锁敌开火（<b>F</b> 可关闭）</div>'
+        +'<div><b>'+L.turn+'</b> 换目标 · <b>'+L.fire+'</b> 按住＝强制连射（可打到过热）</div>'
+      : '<div><b>自动跟枪</b>：枪口对准当前目标 · <b>'+L.turn+'</b> 换目标（<b>F</b> 开自动开火）</div>'
+        +'<div><b>'+L.fire+'</b> 开火（按住连射）</div>')+
+    '<div><b>'+L.fine+'</b> 按住＝自由瞄准 · <b>'+L.charge+'</b> 蓄力重击（无视护甲）</div>'+
     '<div><b>Q</b> 歼灭光束（造成伤害充能，满了可释放）</div>'+
     '<div><b>1–8</b> 选炮塔 · <b>E</b> 就地建造 · <b>R</b> 升级 · <b>T</b> 出售</div>'+
     '<div><b>[ ]</b> 切换已建炮塔（可隔空升级）· 炮塔有数量上限，靠升级变强</div>'+
