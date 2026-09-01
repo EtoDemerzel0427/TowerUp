@@ -956,8 +956,9 @@ function makeHazard(h){
     }
   } else if(h.kind==='ice'){
     const sheet=new THREE.Mesh(geo('hz_i',()=>new THREE.CircleGeometry(1,40)),
-      new THREE.MeshStandardMaterial({color:new THREE.Color('#cfe8ff'),transparent:true,opacity:.55,
-        roughness:.06,metalness:.1,envMapIntensity:2.2}));
+      // at the brighter exposure a mirror-finish sheet blew out to a white disc
+      new THREE.MeshStandardMaterial({color:new THREE.Color('#9fc4e8'),transparent:true,opacity:.42,
+        roughness:.22,metalness:.1,envMapIntensity:.9}));
     sheet.rotation.x=-Math.PI/2; sheet.position.y=.06; sheet.scale.setScalar(h.r); g.add(sheet);
     const rim=m3(geo('hz_ir',()=>new THREE.TorusGeometry(1,.05,6,40)),
       mat('#dff2ff',{em:'#8fd0ff',ei:.7,rough:.2,metal:.1}),0,.06,0);
@@ -985,9 +986,11 @@ function makeHazard(h){
       const sl=m3(geo('hz_ss',()=>new THREE.BoxGeometry(1.4,.06,.16)),
         mat('#0d1220',{rough:.9,metal:.2}),0,.16,(i-2)*.28);
       sl.scale.x=h.r*.9; g.add(sl);}
-    const col=new THREE.Mesh(geo('hz_sc',()=>new THREE.CylinderGeometry(.85,1,4.2,18,1,true)),
+    // the burst column was a straight-sided cylinder: seen from the game camera a
+    // 4-unit-tall tube is a solid cyan rectangle. A tapering plume reads as steam.
+    const col=new THREE.Mesh(geo('hz_sc',()=>new THREE.CylinderGeometry(.3,1,3.4,18,1,true)),
       glowMat('#e8f4ff',.0,THREE.DoubleSide));
-    col.position.y=2.1; col.scale.set(h.r,1,h.r); g.add(col); g.userData.col=col;
+    col.position.y=1.7; col.scale.set(h.r,1,h.r); g.add(col); g.userData.col=col;
     const warn=new THREE.Mesh(geo('hz_sw',()=>new THREE.RingGeometry(.86,1,32)),glowMat('#ff4d5e',0,THREE.DoubleSide));
     warn.rotation.x=-Math.PI/2; warn.position.y=.2; warn.scale.setScalar(h.r*1.15); g.add(warn);
     g.userData.warn=warn;

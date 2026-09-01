@@ -4,8 +4,8 @@ const HALFW=COLS/2, HALFH=ROWS/2;
 
 const World=(()=>{
 let scene,cam,ren,ray,boardEl,dust,groundPlane;
-let partGeo,partPts,partPos,partCol;
-let beamGeo,beamLines,beamPos,beamCol;
+let partSys=[];
+let beamGeo,beamLines,beamPos,beamCol,beamUv;
 let shockPool=[],magmaPool=[],dropPool=[];
 let ghost=null,rangeRing=null,rangeDisc=null,selRing=null,aimRing=null,hoverPlate=null;
 let playerObj=null,coreObj=null,coreRing=null,boardGroup=null,linkLines=null;
@@ -40,6 +40,14 @@ function texEnv(){
   t.mapping=THREE.EquirectangularReflectionMapping; t.colorSpace=THREE.SRGBColorSpace; return t;
 }
 let DOT;
+function texRibbon(){
+  const c=document.createElement('canvas'); c.width=64; c.height=8; const x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,64,0);
+  g.addColorStop(0,'rgba(255,255,255,0)'); g.addColorStop(.32,'rgba(255,255,255,.55)');
+  g.addColorStop(.5,'rgba(255,255,255,1)'); g.addColorStop(.68,'rgba(255,255,255,.55)'); g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=g; x.fillRect(0,0,64,8);
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+}
 function texHex(){
   const c=document.createElement('canvas'); c.width=c.height=256; const x=c.getContext('2d');
   x.clearRect(0,0,256,256);
@@ -134,20 +142,34 @@ function init(){
   L.rim=new THREE.DirectionalLight(0x35e6ff,.6); L.rim.position.set(-14,7,-10); scene.add(L.rim);
   L.rim2=new THREE.DirectionalLight(0xff3d8a,.42); L.rim2.position.set(13,5,-12); scene.add(L.rim2);
 
-  partGeo=new THREE.BufferGeometry();
-  partPos=new Float32Array(PMAX*3); partCol=new Float32Array(PMAX*3);
-  partGeo.setAttribute('position',new THREE.BufferAttribute(partPos,3));
-  partGeo.setAttribute('color',new THREE.BufferAttribute(partCol,3));
-  partPts=new THREE.Points(partGeo,new THREE.PointsMaterial({size:.19,map:DOT,vertexColors:true,
-    transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true}));
-  partPts.frustumCulled=false; scene.add(partPts);
+  /* Three particle systems by size class instead of one. A per-vertex point size
+     in a custom ShaderMaterial rendered the last point of every batch as a
+     full-screen white quad on Apple/ANGLE (count-dependent, so a driver quirk);
+     three fixed-size PointsMaterials give the same small/medium/large read with
+     nothing exotic in the pipeline. */
+  partSys=[];
+  for(const sz of [.13,.22,.36]){
+    const g=new THREE.BufferGeometry();
+    const pos=new Float32Array(PMAX*3), col=new Float32Array(PMAX*3);
+    g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    g.setAttribute('color',new THREE.BufferAttribute(col,3));
+    const pts=new THREE.Points(g,new THREE.PointsMaterial({size:sz,map:DOT,vertexColors:true,
+      transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true}));
+    pts.frustumCulled=false; scene.add(pts);
+    partSys.push({g,pos,col,pts,n:0});
+  }
 
+  /* Beams used to be GL lines, which are one pixel wide whatever you ask for --
+     a sniper shot or a lightning arc was a hairline at 2x DPR. They are ribbons
+     now: a soft-edged quad per segment, lying in the ground plane, width in world
+     units, so a rail shot is a bar of light and an arc is a fat crackle. */
   beamGeo=new THREE.BufferGeometry();
-  beamPos=new Float32Array(BMAX*3); beamCol=new Float32Array(BMAX*3);
+  beamPos=new Float32Array(BMAX*6*3); beamCol=new Float32Array(BMAX*6*3); beamUv=new Float32Array(BMAX*6*2);
   beamGeo.setAttribute('position',new THREE.BufferAttribute(beamPos,3));
   beamGeo.setAttribute('color',new THREE.BufferAttribute(beamCol,3));
-  beamLines=new THREE.LineSegments(beamGeo,new THREE.LineBasicMaterial({vertexColors:true,
-    transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+  beamGeo.setAttribute('uv',new THREE.BufferAttribute(beamUv,2));
+  beamLines=new THREE.Mesh(beamGeo,new THREE.MeshBasicMaterial({vertexColors:true,map:texRibbon(),
+    transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false}));
   beamLines.frustumCulled=false; scene.add(beamLines);
 
   const rg=new THREE.RingGeometry(.82,1,48);
@@ -649,7 +671,7 @@ function frame(dt,now){
     } else if(h.kind==='steam'){
       const warn=h.phase==='warn', burst=h.phase==='burst';
       if(u.warn){ u.warn.material.opacity=warn?(.35+Math.sin(now*22)*.25):0; }
-      if(u.col){ u.col.material.opacity=burst?.42:0;
+      if(u.col){ u.col.material.opacity=burst?.2:0;
         u.col.scale.y=burst?1:.2; }
     }
   }
@@ -759,36 +781,40 @@ function frame(dt,now){
   }
 
   // particles
-  let pi=0;
+  for(const ps of partSys)ps.n=0;
   for(const p of S.parts){
-    if(pi>=PMAX)break;
-    const k=1-p.t/p.life;
-    partPos[pi*3]=WX(p.x); partPos[pi*3+1]=p.z; partPos[pi*3+2]=WZ(p.y);
-    partCol[pi*3]=p.col.r*k; partCol[pi*3+1]=p.col.g*k; partCol[pi*3+2]=p.col.b*k; pi++;
+    const r=p.r||.1, ps=partSys[r<.085?0:r<.15?1:2];
+    if(ps.n>=PMAX)continue;
+    const k=1-p.t/p.life, i=ps.n++;
+    ps.pos[i*3]=WX(p.x); ps.pos[i*3+1]=p.z; ps.pos[i*3+2]=WZ(p.y);
+    ps.col[i*3]=p.col.r*k; ps.col[i*3+1]=p.col.g*k; ps.col[i*3+2]=p.col.b*k;
   }
-  partGeo.setDrawRange(0,pi);
-  partGeo.attributes.position.needsUpdate=true; partGeo.attributes.color.needsUpdate=true;
+  for(const ps of partSys){ ps.g.setDrawRange(0,ps.n);
+    ps.g.attributes.position.needsUpdate=true; ps.g.attributes.color.needsUpdate=true; }
 
-  // beams
-  let bi=0;
+  let bi=0;   // segment count; each segment is two triangles
+  const putV=(vi,x,y,z,u,v,r,g,bl)=>{ beamPos[vi*3]=x; beamPos[vi*3+1]=y; beamPos[vi*3+2]=z;
+    beamUv[vi*2]=u; beamUv[vi*2+1]=v; beamCol[vi*3]=r; beamCol[vi*3+1]=g; beamCol[vi*3+2]=bl; };
   for(const b of S.beams){
-    const k=1-b.t/b.life, segs=b.jag?5:1;
-    for(let i=0;i<segs&&bi<BMAX-2;i++){
+    const k=1-b.t/b.life, segs=b.jag?5:1, hw=Math.max(.02,(b.w||1)*.034)*(.6+.4*k);
+    const r=b.col.r*k, g=b.col.g*k, bl=b.col.b*k;
+    for(let i=0;i<segs&&bi<BMAX;i++){
       const t1=i/segs,t2=(i+1)/segs;
       const jx=b.jag?Math.sin(b.seed+i*3.1)*b.jag:0, jz=b.jag?Math.cos(b.seed+i*2.3)*b.jag:0;
       const jx2=b.jag&&i<segs-1?Math.sin(b.seed+(i+1)*3.1)*b.jag:0, jz2=b.jag&&i<segs-1?Math.cos(b.seed+(i+1)*2.3)*b.jag:0;
-      beamPos[bi*3]=lerp(WX(b.a.x),WX(b.b.x),t1)+jx;
-      beamPos[bi*3+1]=lerp(b.a.z,b.b.z,t1)+(b.jag?Math.sin(b.seed+i)*b.jag*.5:0);
-      beamPos[bi*3+2]=lerp(WZ(b.a.y),WZ(b.b.y),t1)+jz;
-      beamCol[bi*3]=b.col.r*k;beamCol[bi*3+1]=b.col.g*k;beamCol[bi*3+2]=b.col.b*k; bi++;
-      beamPos[bi*3]=lerp(WX(b.a.x),WX(b.b.x),t2)+jx2;
-      beamPos[bi*3+1]=lerp(b.a.z,b.b.z,t2)+(b.jag&&i<segs-1?Math.sin(b.seed+i+1)*b.jag*.5:0);
-      beamPos[bi*3+2]=lerp(WZ(b.a.y),WZ(b.b.y),t2)+jz2;
-      beamCol[bi*3]=b.col.r*k;beamCol[bi*3+1]=b.col.g*k;beamCol[bi*3+2]=b.col.b*k; bi++;
+      const ax=lerp(WX(b.a.x),WX(b.b.x),t1)+jx, ay=lerp(b.a.z,b.b.z,t1)+(b.jag?Math.sin(b.seed+i)*b.jag*.5:0), az=lerp(WZ(b.a.y),WZ(b.b.y),t1)+jz;
+      const bx=lerp(WX(b.a.x),WX(b.b.x),t2)+jx2, by=lerp(b.a.z,b.b.z,t2)+(b.jag&&i<segs-1?Math.sin(b.seed+i+1)*b.jag*.5:0), bz=lerp(WZ(b.a.y),WZ(b.b.y),t2)+jz2;
+      let dx=bx-ax, dz=bz-az; const dl=Math.hypot(dx,dz)||1; dx/=dl; dz/=dl;
+      // a vertical segment (orbital strike) has no ground-plane direction: face it along x
+      const px=(dl<.02?1:-dz)*hw, pz=(dl<.02?0:dx)*hw;
+      const v=bi*6;
+      putV(v  ,ax-px,ay,az-pz,0,0,r,g,bl); putV(v+1,ax+px,ay,az+pz,1,0,r,g,bl); putV(v+2,bx+px,by,bz+pz,1,1,r,g,bl);
+      putV(v+3,ax-px,ay,az-pz,0,0,r,g,bl); putV(v+4,bx+px,by,bz+pz,1,1,r,g,bl); putV(v+5,bx-px,by,bz-pz,0,1,r,g,bl);
+      bi++;
     }
   }
-  beamGeo.setDrawRange(0,bi);
-  beamGeo.attributes.position.needsUpdate=true; beamGeo.attributes.color.needsUpdate=true;
+  beamGeo.setDrawRange(0,bi*6);
+  beamGeo.attributes.position.needsUpdate=true; beamGeo.attributes.color.needsUpdate=true; beamGeo.attributes.uv.needsUpdate=true;
 
   shockPool.forEach((m,i)=>{const s=S.shocks[i];
     if(!s){m.visible=false;return;}
