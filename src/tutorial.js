@@ -67,7 +67,8 @@ const Tutor = (function(){
 
     { t:'蓄力重击 · 破甲',
       d:()=>'这只<u>重装兵护甲很厚</u>，普通子弹只能打出 15% 伤害（会跳「护甲」两个字）。'+
-            '按住 '+kb(K().charge)+' 蓄力、松手发射——重击<u>完全无视护甲</u>。'+
+            '<u>按住 '+kb(K().fire)+' 不放</u>——边打边蓄力，松手就是一发重击，'+
+            '<u>完全无视护甲</u>。（也可以用专用蓄力键 '+kb(K().charge)+'）'+
             (touch()?'手机上是「蓄力」键。':''),
       hint:'用蓄力重击打掉它',
       setup(){ wipe(); const e=dummy('brute',6,-Math.PI/2,null,.55); e.armor=40; e.sp=0; },
@@ -102,13 +103,16 @@ const Tutor = (function(){
       setup(){ Tutor._tw=S.towers.length; },
       done(){ return S.towers.length<Tutor._tw; } },
 
-    { t:'战术技能',
-      d:()=>'按 '+kb('Z')+' 释放'+ABILITIES[0].n+'——'+ABILITIES[0].desc+'。'+
-            kb('X')+' 和 '+kb('C')+' 是另外两个，冷却各自独立。',
-      hint:'放一次轨道轰炸',
-      setup(){ wipe(); for(let n=0;n<5;n++)dummy('swarm',7,n*1.26,null,.5);
-        for(const a of ABILITIES)S.abil[a.id].cd=0; },
-      done(){ return S.abil.strike.cd>0; } },
+    { t:'战术技能 · 三个都试一遍',
+      d:()=>ABILITIES.map(a=>kb(a.key)+' '+a.n+'（'+a.desc+'）').join('<br>')+
+            '<br>冷却各自独立。'+(touch()?'手机上在左下角的技能栏。':''),
+      hint:'依次放出三个技能',
+      setup(){ wipe(); for(let n=0;n<6;n++)dummy('swarm',7,n*1.05,null,.5);
+        for(const a of ABILITIES)S.abil[a.id].cd=0;
+        Tutor._ab={}; },
+      done(){ for(const a of ABILITIES) if(S.abil[a.id].cd>0)Tutor._ab[a.id]=1;
+        return ABILITIES.every(a=>Tutor._ab&&Tutor._ab[a.id]); },
+      prog(){ const n=Tutor._ab?Object.keys(Tutor._ab).length:0; return n/ABILITIES.length; } },
 
     { t:'歼灭光束',
       d:()=>'造成伤害会积攒大招。攒满后按 '+kb('Q')+' 释放一道可以扫过战场的光束。'+
@@ -244,6 +248,7 @@ const Tutor = (function(){
       }
       if(Math.random()<dt*3)card();     // keep the progress bar alive
     },
+    redraw(){ if(active)card(); },
     steps(){ return STEPS.length; },
   };
 })();

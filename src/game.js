@@ -34,7 +34,7 @@ function newPlayer(){
   return {x:CX,y:CY+TILE*3,vx:0,vy:0,face:-Math.PI/2,aim:-Math.PI/2,
     hp:PLAYER.hp,alive:true,deadT:0,dashT:0,dashCd:0,dashDx:0,dashDy:0,
     iframe:1.5,moving:false,cool:0,droneAng:0,r:PLAYER.r,
-    heat:0,overheat:0,charge:0,charging:false,chgCd:0,flashT:0,kick:0,turnHold:0,aiming:false,
+    heat:0,overheat:0,charge:0,charging:false,chgCd:0,fireHold:0,flashT:0,kick:0,turnHold:0,aiming:false,
     onIce:false,hazT:0,fine:false,dashLatch:false,coolT:0,rageT:0,shield:0,
     rageArmed:false,coolArmed:false,magnetArmed:false,
     ult:0,ultT:0,ultLatch:false,magnetT:0,
@@ -1449,6 +1449,20 @@ function updatePlayer(dt){
   if(KM.dash&&!P.dashLatch)dash();
   P.dashLatch=KM.dash;
   P.aiming=aiming;
+  /* The trigger doubles as the charge. Hold 空格 and you spray as normal while the
+     shot winds up; let go past the threshold and the heavy round lands on top of
+     it. The dedicated charge key still works for anyone who prefers it, and
+     auto-fire deliberately does not build a hold -- it only reads the real key. */
+  if(KM.fire&&!P.charging&&P.overheat<=0)P.fireHold=(P.fireHold||0)+dt;
+  else if(!KM.fire&&P.fireHold>0){
+    if(P.fireHold>=PLAYER.holdCharge&&P.chgCd<=0&&P.overheat<=0){
+      P.charge=Math.min(PLAYER.chargeMax,P.fireHold-PLAYER.holdCharge*.5);
+      P.charging=true; releaseCharge();
+    }
+    P.fireHold=0;
+  }
+  if(P.charging)P.fireHold=0;
+
   // down (or shift) holds a charge
   const wantCharge=KM.charge||(T.on&&T.charge);
   if(wantCharge&&!P.charging&&P.overheat<=0){ P.charging=true; P.charge=0; }
@@ -1462,7 +1476,7 @@ function updatePlayer(dt){
     P.overheat-=dt; P.heat=Math.max(0,P.heat-st.heatMax*dt/PLAYER.overheatLock);
     if(P.overheat<=0){ P.heat=0; sfx('pick',.5,.7); }
   } else {
-    P.heat=Math.max(0,P.heat-st.heatCool*dt);
+    P.heat=Math.max(0,P.heat-st.heatCool*(S.overT>0?3:1)*dt);
   }
   if(P.chgCd>0)P.chgCd-=dt;
 
@@ -1538,6 +1552,7 @@ function updatePlayer(dt){
 function armBuffs(){
   const P=S.P;
   if(P.rageArmed){ P.rageArmed=false; toast('狂怒剂生效 · 25 秒','#ff5a3d'); }
+  if(S.overArmed){ S.overArmed=false; }
   if(P.coolArmed){ P.coolArmed=false; }
   if(P.magnetArmed){ P.magnetArmed=false; }
 }
@@ -1554,7 +1569,9 @@ function firePrimary(){
       dmg:st.dmg*(P.rageT>0?1.8:1),crit,pierce:st.pierce,explo:st.explo,hit:new Set(),
       color:crit?'#fff2b0':'#bfe9ff',r:PLAYER.bulletR,len:.62});
   }
-  if(P.coolT<=0)P.heat=Math.min(st.heatMax,P.heat+st.heatPerShot);
+  // 火力过载 is supposed to be the moment you stop rationing the trigger; having the
+  // barrel overheat through it defeated the point. It vents instead of building.
+  if(P.coolT<=0&&S.overT<=0)P.heat=Math.min(st.heatMax,P.heat+st.heatPerShot);
   if(P.heat>=st.heatMax){ P.overheat=PLAYER.overheatLock; sfx('err',.8);
     burstFx(P.x+Math.cos(P.aim)*mz,P.y+Math.sin(P.aim)*mz,.55,'#ff8a2d',14,4,.11);
     text(P.x,P.y,1.6,'过热!','#ff8a2d',15); }
@@ -2347,7 +2364,8 @@ function fireAbility(a,x,y){
       shock(e.x,e.y,.3,.9,'#9fe8ff',.5); burstFx(e.x,e.y,.5,'#cbf1ff',8,4,.1); }
     log('绝对冰封 · 全场冻结');
   } else if(a.id==='over'){
-    S.overT=15;
+    S.overT=15; S.overArmed=true;
+    S.P.heat=0; S.P.overheat=0;   // vent the barrel: overload means no rationing
     for(const t of S.towers){ shock(t.x,t.y,.35,1.5,'#ffc247',.6);
       for(let i=0;i<12;i++)part(t.x,t.y,.5,'#ffc247',{sp:rnd(5,1)}); }
     log('火力过载 · 射速 +150%');
@@ -2359,7 +2377,7 @@ function fireAbility(a,x,y){
 function sim(dt){
   S.time+=dt;
   if(typeof Tutor!=='undefined'&&Tutor.active)Tutor.update(dt);
-  if(S.overT>0&&inCombat())S.overT-=dt;   // 火力过载 holds until there is something to shoot
+  if(S.overT>0&&!S.overArmed)S.overT-=dt;   // armed until your next shot, then it just runs
   if(S.comboT>0){S.comboT-=dt;if(S.comboT<=0)S.combo=0;}
   for(const id in S.abil) if(S.abil[id].cd>0)S.abil[id].cd=Math.max(0,S.abil[id].cd-dt);
 

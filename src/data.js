@@ -31,6 +31,9 @@ const PLAYER={
   heatPerShot:7.8, heatMax:100, heatCool:30, overheatLock:1.4,
   // right button: hold to charge a piercing slug
   chargeMax:1.05, chargeMinMul:1.1, chargeMaxMul:6.5, chargeHeat:26, chargeCd:.35,
+  // hold the trigger this long and letting go delivers the heavy shot as well;
+  // one key for both is what everyone reaches for
+  holdCharge:.55,
 };
 
 /* ---------- arenas ---------- */
@@ -368,5 +371,5 @@ const ABILITIES=[
     Shorter cooldowns, longer effects -- and S.overT now pauses out of combat. */
  {id:'strike',n:'轨道轰炸',gl:'☄',key:'Z',cd:28,aim:true,r:3.4,dmg:460,desc:'在准星处降下毁灭打击'},
  {id:'freeze',n:'绝对冰封',gl:'❄',key:'X',cd:36,aim:false,desc:'全场敌人冻结 4.5 秒'},
- {id:'over',  n:'火力过载',gl:'⚡',key:'C',cd:34,aim:false,desc:'炮塔与武器射速 +150%，持续 15 秒'},
+ {id:'over',  n:'火力过载',gl:'⚡',key:'C',cd:34,aim:false,desc:'炮塔与武器射速 +150%，期间枪管不再过热，持续 15 秒'},
 ];

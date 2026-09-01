@@ -462,6 +462,38 @@ function selectBuild(k){
 
 /* ---------- inspector ---------- */
 const MODES=[['core','守核'],['close','最近'],['strong','最强'],['weak','残血']];
+/* Cycling 1-8 armed a turret type but showed it only as a highlighted row in a
+   side panel you are not looking at mid-fight. Put the thing you are about to
+   place on the board itself, with what it costs and what it does. */
+function renderBuildPick(){
+  const box=$('buildPick'); if(!box)return;
+  const k=S.build;
+  if(!k||!TOWERS[k]){ box.classList.add('hide'); return; }
+  const d=TOWERS[k];
+  const sel=S.sel;   // only what you are actually looking at, not a remembered one
+  const refit=sel&&sel.key!==k;
+  const cost=refit?swapCost(sel,k):towerCost(k);
+  const afford=S.scrap>=cost;
+  const full=!refit&&slotsFull();
+  const lv1=i=>Array.isArray(i)?i[0]:i;
+  let stats='';
+  if(d.support)stats='光环 '+lv1(d.range)+' · 伤害+'+Math.round(lv1(d.buffDmg)*100)+'%';
+  else stats='伤害 '+lv1(d.dmg)+' · 射速 '+lv1(d.rate)+'/s · 射程 '+lv1(d.range)+(d.air?'':' · 不打空中');
+  box.classList.remove('hide');
+  box.innerHTML=
+    '<img src="'+(ICON[k]||'')+'" alt="">'+
+    '<div class="bp-main">'+
+      '<div class="bp-t"><span class="hk">'+d.hotkey+'</span>'+d.name+
+        '<em>'+d.role+'</em></div>'+
+      '<div class="bp-s">'+stats+'</div>'+
+      '<div class="bp-a'+(full?' bad':afford?'':' bad')+'">'+
+        (full ? '炮塔已满 '+S.towers.length+'/'+towerSlots()+' · 可改造或出售'
+              : (refit ? '改造「'+sel.def.name+'」→ 按 <b>V</b> · '+cost+' 碎片'
+                       : '按 <b>E</b> 就地建造 · '+cost+' 碎片'))+
+      '</div>'+
+    '</div>'+
+    '<div class="bp-nav">1–8 切换<br>Esc 取消</div>';
+}
 function renderInspector(){
   const t=S.sel;
   if(!t){el.secInsp.style.display='none';el.secBuild.style.display='';return;}
@@ -580,15 +612,21 @@ function loadLayout(){
   try{
     // one-time migration: the old default put movement on the arrows and gave WASD
     // four separate aiming jobs, which is backwards from what anyone expects
-    if(!localStorage.getItem('abyss2_layout_v2')){
-      localStorage.setItem('abyss2_layout_v2','1');
-      localStorage.setItem('abyss2_layout','left');
+    // v2 forced WASD movement on everyone; the arrows are the intended default,
+    // and the free-aim key that used to sit under a WASD walker now announces itself
+    if(!localStorage.getItem('abyss2_layout_v3')){
+      localStorage.setItem('abyss2_layout_v3','1');
+      localStorage.setItem('abyss2_layout','right');
     }
-    S.layout=localStorage.getItem('abyss2_layout')||'left';
-  }catch(e){ S.layout='left'; }
+    S.layout=localStorage.getItem('abyss2_layout')||'right';
+  }catch(e){ S.layout='right'; }
 }
 function toggleLayout(){ S.layout=S.layout==='right'?'left':'right'; saveLayout();
-  const L=layoutHint(); log('操作布局：'+L.move+' 移动 · '+L.turn+' 旋转 · '+L.fire+' 开火'); renderTips(); }
+  const L=layoutHint(); log('操作布局：'+L.move+' 移动 · '+L.turn+' 旋转 · '+L.fire+' 开火');
+  renderTips();
+  if(typeof Tutor!=='undefined'&&Tutor.active)Tutor.redraw();   // training text follows the keys
+  if(!el.ovlHelp.classList.contains('hide'))renderHelp();
+  toast('操作布局：'+L.move+' 移动','#35e6ff'); }
 function bestKey(){return 'abyss2_best_'+S.map.id+'_'+S.diff.id;}
 function saveBest(){ try{localStorage.setItem(bestKey(),String(S.best));}catch(e){} }
 function loadBest(){ try{S.best=+(localStorage.getItem(bestKey())||0);}catch(e){S.best=0;} }
@@ -605,6 +643,7 @@ const UI={
   el.scrap.textContent=S.scrap;
   el.lives.textContent='◆'.repeat(Math.max(0,S.playerLives))+'◇'.repeat(Math.max(0,S.diff.lives-S.playerLives));
   el.livesChip.classList.toggle('low',S.playerLives<=1);
+  renderBuildPick();
   el.power.textContent=S.towers.length+'/'+towerSlots();
   const need=riftsForNextSlot();
   el.mul.textContent=(need!=null&&S.riftProgress>0)
@@ -913,7 +952,7 @@ function cycleTowerSel(dir){
   const list=S.towers.slice().sort((a,b)=>(a.row-b.row)||(a.col-b.col));
   const i=S.sel?list.indexOf(S.sel):-1;
   const t=list[((i<0?(dir>0?-1:0):i)+dir+list.length)%list.length];
-  selectTower(t); sfx('pick',.35,1.2);
+  selectTower(t); sfx('pick',.35,1.2); UI.sync();
   const up=upgradeCost(t);
   toast(t.def.name+' LV'+t.lvl+(up!=null?' · R 升级需 '+up:' · 已满级')+
         (S.build&&S.build!==t.key?' · V 改造为'+TOWERS[S.build].name+' 需 '+swapCost(t,S.build):''),t.def.c);
@@ -940,7 +979,8 @@ function helpRows(){
     row([L.fire],'开火（按住连射）· 枪口<u>自动锁定</u>最近的敌人'),
     row(['F'],'自动开火开关 · 开启后锁到敌人就自己射，不必按住'+(touch?'（手机默认开）':'（键盘默认关）')),
     row(L.turn.split('/').map(x=>x.trim()),'切换锁定目标'),
-    row([L.charge],'蓄力重击 · 按住蓄力、松手发射，<u>无视护甲</u>，破重甲专用'),
+    row([L.fire],'<u>长按</u>开火键＝边打边蓄力，松手放出重击 · <u>无视护甲</u>，破重甲专用'),
+    row([L.charge],'专用蓄力键（同样是按住蓄力、松手发射）'),
     row([L.fine],'按住＝自由瞄准 · <u>会暂时关闭自动跟枪</u>，打特定位置时才用'),
     row(['Q'],'歼灭光束 · 造成伤害积攒，满了释放'),
   ]);
@@ -1048,8 +1088,8 @@ function miniPreview(canvas,m){
     x.beginPath();x.arc(w/2+Math.cos(a)*w*.47,h/2+Math.sin(a)*h*.45,2.2,0,TAU);x.fill();}
 }
 const LAYOUTS=[
- {id:'left', n:'WASD 移动（默认）',d:'WASD 移动 · 自动瞄准并开火 · ←/→ 换目标 · ↑ 蓄力'},
- {id:'right',n:'方向键移动',      d:'方向键移动 · 自动瞄准并开火 · A/D 换目标 · W 蓄力'},
+ {id:'right',n:'方向键移动（默认）',d:'方向键移动 · 自动跟枪 · A/D 换目标 · W 蓄力 · S 自由瞄准'},
+ {id:'left', n:'WASD 移动',        d:'WASD 移动 · 自动跟枪 · ←/→ 换目标 · ↑ 蓄力 · ↓ 自由瞄准'},
 ];
 function renderTips(){
   const L=layoutHint();
@@ -1125,7 +1165,7 @@ function startGame(){
   applyCoreUpgrades(false); S.core.shield=S.core.maxShield;
   S.scrap=pickDiff.scrap; S.wave=0; S.time=0; S.rest=REST; S.qt=0;
   S.running=true; S.over=false; S.paused=false; S.victory=false; S.speed=1; S.waveActive=false;
-  S.kills=0; S.earned=0; S.combo=0; S.comboT=0; S.overT=0; S.build=null; S.aim=null; S.sel=null;
+  S.kills=0; S.earned=0; S.combo=0; S.comboT=0; S.overT=0; S.overArmed=false; S.build=null; S.aim=null; S.sel=null;
   S.lastKill=0; S.purge=0; S.armorHint=false; S.eliteHint=false; S.fineHint=false;
   S.slotEarned=0; S.riftProgress=0; S.riftsClosed=0;
   S.shake=0; S.flash=0;
