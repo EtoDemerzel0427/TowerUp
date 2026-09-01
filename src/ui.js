@@ -605,7 +605,8 @@ function renderWavePrev(){
     if(t==='__miniboss')
       return '<span class="wpi elite" title="'+(mb.hint||'')+'"><i style="background:#ff3d8a"></i>'+mb.n+' <b>×'+n+'</b></span>'+
         (mb.hint?'<div class="wphint">'+mb.hint+'</div>':'');
-    const E=ENEMIES[t]; if(!E)return '';
+    const E=ENEMIES[t.startsWith('__boss:')?t.slice(7):t]; if(!E)return '';
+    if(t.startsWith('__boss:'))return '<span class="wpi elite"><i style="background:#ff3d8a"></i>BOSS · '+E.name+' <b>×'+n+'</b></span>';
     return '<span class="wpi"><i style="background:'+E.c+'"></i>'+E.name+' <b>×'+n+'</b></span>';
   }).join('');
 }
@@ -1056,7 +1057,7 @@ function helpRows(){
     row([L.charge],'蓄力重击 · 按住蓄力、松手发射，<u>无视护甲</u>，破重甲专用 · '+
       '<u>此键不随布局改变</u>（'+L.charge2+' 同样可用）'),
     row([L.fine],'按住＝自由瞄准 · <u>会暂时关闭自动跟枪</u>，打特定位置时才用'),
-    row(['Q'],'歼灭光束 · 造成伤害积攒，满了释放 · <u>对单个目标每秒最多打掉其最大生命 12%</u>，清场用，首领得靠蓄力和破防'),
+    row(['Q'],'歼灭光束 · 造成伤害积攒，满了释放 · <u>对首领和 BOSS 每秒最多打掉其最大生命 12%</u>，清场用，首领得靠蓄力和破防'),
   ]);
   const towerSec=sec('炮塔',[
     row(['1','–','8'],'选择要建造的炮塔型号'),

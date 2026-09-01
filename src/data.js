@@ -26,7 +26,8 @@ const PLAYER={
   lockTrack:11, assistCone:.26, assistPull:1.9,
   // ultimate: charged by damage dealt, unleashes a steerable annihilation beam
   ultNeed:2400, ultTime:3.6, ultDps:520, ultWidth:1.15, ultRange:16,
-  /* Per-target ceiling on beam damage, as a fraction of max health per second.
+  /* Ceiling on beam damage against NAMED units (champions, bosses), as a fraction
+     of max health per second. Trash takes the full beam.
      At 520+ dps the beam did 2200 at wave 3 against a 666-health champion and
      one-shot the region boss at wave 5 -- every named fight ended the moment the
      bar filled. Trash still evaporates (their whole bar is under the cap); a
@@ -347,7 +348,7 @@ function waveComp(w,wis,wlen,stage){
   if(el)add('__elite',el,2.2,3.5);
   if(isBoss){
     const plan=BOSSPLAN[Math.min(stage,BOSSPLAN.length-1)];
-    add(plan.t,plan.n,2.2,0);
+    add('__boss:'+plan.t,plan.n,2.2,0);    // the stage boss, flagged as one
     add('grunt',8+w*1.4|0,.3,1.5);
     add('runner',4+w*.5|0,.35,4);
     if(w>=10)add('shield',2+Math.floor(w/8),.8,6);

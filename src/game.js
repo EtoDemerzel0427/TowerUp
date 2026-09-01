@@ -738,6 +738,11 @@ function spawnUnit(type,x,y){
     const base=pick(ELITE_POOL.filter(k=>k!=='shooter'||S.wave>=6));
     return spawnEnemyAt(base,x,y,null,{affix:pick(AFFIX_KEYS)});
   }
+  if(type.startsWith('__boss:')){
+    // the region's stage boss: a jug in regions one and two is still THE boss --
+    // boss bar, boss drops, beam resistance -- even though the unit type is not
+    return spawnEnemyAt(type.slice(7),x,y,null,{stageBoss:true});
+  }
   if(type==='__miniboss'){
     const mb=MINIBOSS[S.map.id]||MINIBOSS.ring;
     return spawnEnemyAt(mb.base,x,y,null,{affix:mb.affix,mini:mb});
@@ -761,7 +766,7 @@ function spawnEnemyAt(type,x,y,hpMulOverride,opt){
     shield:(def.shield||0)*hpMul,maxShield:(def.shield||0)*hpMul,shieldT:0,
     armor:def.armor*(1+S.wave*.016)*(A&&A.armor?A.armor:1)*(MB&&MB.armor?MB.armor:1),
     sp:def.sp*spScale(S.wave)*(A&&A.sp?A.sp:1),curSp:def.sp,
-    r:def.r*(MB?1.25:A?1.12:1),fly:!!def.fly,boss:!!def.boss||!!MB,
+    r:def.r*(MB?1.25:A?1.12:1),fly:!!def.fly,boss:!!def.boss||!!MB||!!(opt&&opt.stageBoss),
     scale:(def.scale||1)*(MB?MB.scale:A?1.18:1),
     affix:opt&&opt.affix||null, affixDef:A, mini:MB, ai:(A&&A.ai)||null, kit:MB&&MB.kit||null,
     lungeCd:rnd(2), blinkCd:rnd(3),
@@ -780,7 +785,7 @@ function spawnEnemyAt(type,x,y,hpMulOverride,opt){
   if(MB){ sfx('boss'); shake(.55); banner('精英首领 · '+MB.n); log('⚑ '+MB.n+' 出现');
     if(MB.hint)toast(MB.n+' · '+MB.hint,'#ff8ac0');
     if(typeof BossKit!=='undefined'&&e.kit)BossKit.init(e); }
-  else if(def.boss){ sfx('boss'); shake(.7); banner('BOSS · '+def.name); }
+  else if(def.boss||(opt&&opt.stageBoss)){ sfx('boss'); shake(.7); banner('BOSS · '+def.name); }
   else if(A){ shock(x,y,.4,1.6,A.c,.6); sfx('hit',.7,.7); }
   return e;
 }
@@ -1634,7 +1639,9 @@ function updatePlayer(dt){
     nearEnemies((P.x+ex)/2,(P.y+ey)/2,R,e=>{
       if(!e.alive)return;
       if(ptSegDist(e.x,e.y,P.x,P.y,ex,ey)<halfW+e.r){
-        const raw=PLAYER.ultDps*(1+S.wave*.06)*dt, cap=e.maxHp*PLAYER.ultCap*dt;
+        // named units only: a flat 12%/s cap also throttled 65-health grunts to
+        // 43% per beam and turned the screen-clear into a flashlight
+        const raw=PLAYER.ultDps*(1+S.wave*.06)*dt, cap=(e.boss||e.mini)?e.maxHp*PLAYER.ultCap*dt:raw;
         hurt(e,Math.min(raw,cap),
           {fromPlayer:true,pierceArmor:true,noNum:true,ang:P.aim,poiseMul:3});
         if(cap<raw&&!e.ultCapHint&&(e.boss||e.mini)){ e.ultCapHint=true;

@@ -13,6 +13,7 @@
 window.__fastRun=function(diffId,opts={}){
   return new Promise(resolve=>{
     S.keys={}; if(S.P)S.P.charging=false;
+    S.autoFire=true;   // a scenario test that switched it off would otherwise leave every later run blind
     pickDiff=DIFFS.find(d=>d.id===diffId)||DIFFS[1];
     startGame(); S.paused=true;   // the rAF loop stays out; we step sim by hand
     const BUILD_ORDER=['arrow','cannon','frost','flame','tesla','toxin','sniper','beacon'];
@@ -59,7 +60,11 @@ window.__fastRun=function(diffId,opts={}){
       const champ=S.enemies.find(e=>e.alive&&e.kit&&e.k);
       let dodge=null;
       if(champ){ const k=champ.k, d=Math.hypot(champ.x-P.x,champ.y-P.y);
-        if(champ.kit==='crusher'&&(k.st==='wind'||k.st==='charge')){ const side=Math.sign(Math.sin(Math.atan2(P.y-champ.y,P.x-champ.x)-k.a))||1; const a=k.a+side*Math.PI/2; dodge={x:P.x+Math.cos(a)*TILE*4,y:P.y+Math.sin(a)*TILE*4,dash:k.st==='charge'&&d<6*TILE}; }
+        if(champ.kit==='crusher'&&(k.st==='wind'||k.st==='charge')){
+          // a human sidesteps the lane, not the whole map: only move when actually in it
+          const rel=Math.atan2(P.y-champ.y,P.x-champ.x)-k.a, off=Math.abs(Math.sin(rel))*d/TILE, ahead=Math.cos(rel)>0;
+          if(ahead&&off<1.8){ const side=Math.sign(Math.sin(rel))||1; const a=k.a+side*Math.PI/2;
+            dodge={x:P.x+Math.cos(a)*TILE*2.4,y:P.y+Math.sin(a)*TILE*2.4,dash:k.st==='charge'&&d<5*TILE}; } }
         else if(champ.kit==='magma'&&k.meteors.length){ let mx=0,my=0; for(const m of k.meteors){mx+=m.x;my+=m.y;} mx/=k.meteors.length; my/=k.meteors.length; const a=Math.atan2(P.y-my,P.x-mx); dodge={x:P.x+Math.cos(a)*TILE*5,y:P.y+Math.sin(a)*TILE*5,dash:false}; }
         else if(champ.kit==='archon'&&k.st==='well'){ const a=Math.atan2(P.y-champ.y,P.x-champ.x); dodge={x:P.x+Math.cos(a)*TILE*6,y:P.y+Math.sin(a)*TILE*6,dash:true}; }
         else if(champ.kit==='warden'&&k.st==='nova'){ const a=Math.atan2(P.y-champ.y,P.x-champ.x); dodge={x:P.x+Math.cos(a)*TILE*5,y:P.y+Math.sin(a)*TILE*5,dash:d<3*TILE}; }
