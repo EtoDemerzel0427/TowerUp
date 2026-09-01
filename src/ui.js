@@ -950,14 +950,14 @@ function refitSelected(){
   const t=S.sel||nearestTower(1.4)||remembered;
   if(!t){ sfx('err'); toast('先用 [ ] 选中一座炮塔','#8d96bd'); return; }
   if(!S.build){ sfx('err'); toast('先按 1–8 选择要改造成的型号','#8d96bd'); return; }
-  if(swapTower(t,S.build)){ selectTower(t); renderInspector(); }
+  if(swapTower(t,S.build)){ S.usedRefitKey=true; selectTower(t); renderInspector(); }
 }
 function cycleTowerSel(dir){
   if(!S.towers.length){ sfx('err'); toast('还没有炮塔','#8d96bd'); return; }
   const list=S.towers.slice().sort((a,b)=>(a.row-b.row)||(a.col-b.col));
   const i=S.sel?list.indexOf(S.sel):-1;
   const t=list[((i<0?(dir>0?-1:0):i)+dir+list.length)%list.length];
-  selectTower(t); sfx('pick',.35,1.2); UI.sync();
+  selectTower(t); S.usedTowerCycle=true; sfx('pick',.35,1.2); UI.sync();
   const up=upgradeCost(t);
   toast(t.def.name+' LV'+t.lvl+(up!=null?' · R 升级需 '+up:' · 已满级')+
         (S.build&&S.build!==t.key?' · V 改造为'+TOWERS[S.build].name+' 需 '+swapCost(t,S.build):''),t.def.c);

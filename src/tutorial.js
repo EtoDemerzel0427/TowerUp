@@ -39,8 +39,15 @@ const Tutor = (function(){
     const e=dummy(pick(a.pool),near?rnd(6,3.5):rnd(11,7),rnd(TAU),null,a.hp||1.3);
     e._amb=true; return e;
   }
+  function ambClear(){
+    for(const e of S.enemies) if(e._amb&&e.alive){ e.alive=false; World.removeEnemy(e,false); }
+    S.enemies=S.enemies.filter(e=>e.alive);
+  }
   function ambSeed(){
     ambT=0;
+    // steps that keep their turret do not wipe, so the previous step's ambient used
+    // to pile on top of the new one -- n has to mean n
+    ambClear();
     const a=STEPS[i].amb; if(!a)return;
     // arrive to a populated arena rather than watching one trickle in from empty
     for(let n=0;n<a.n;n++)ambSpawn(a,n<Math.ceil(a.n/2));
@@ -53,6 +60,11 @@ const Tutor = (function(){
     const live=S.enemies.filter(e=>e.alive&&e._amb).length;
     if(live>=a.n)return;
     ambSpawn(a,false);
+  }
+  function makeBrute(){
+    const e=dummy('brute',6,-Math.PI/2,null,.55);
+    e.armor=40; e.sp=0;
+    return e;
   }
   function dummy(type,dist,ang,opt,hpMul){
     const a=ang!==undefined?ang:rnd(TAU);
@@ -68,7 +80,7 @@ const Tutor = (function(){
       d:()=>'用 '+kb(...K().move.split(' ').filter(Boolean))+' 走动。'+
             (touch()?'手机上是<u>左半屏</u>拖动，拇指按下的位置就是摇杆原点。':''),
       hint:'走上一段距离',
-      amb:{n:3,pool:['swarm'],hp:1.3,every:2.2},
+      amb:{n:2,pool:['swarm'],hp:1.3,every:3.0},
       setup(){ wipe(); }, done(){ return c.moved>7*TILE; },
       prog(){ return Math.min(1,c.moved/(7*TILE)); } },
 
@@ -76,15 +88,15 @@ const Tutor = (function(){
       d:()=>'按 '+kb('Shift')+' 冲刺。冲刺<u>带无敌帧</u>，能穿过敌人、打断它们的攻击，是最重要的保命手段。'+
             (touch()?'手机上是右侧的「冲刺」键。':''),
       hint:'冲刺一次 · 试着直接穿过它们',
-      amb:{n:5,pool:['grunt','swarm'],hp:1.3,every:1.1},
-      setup(){ for(let n=0;n<4;n++){ const e=dummy('grunt',3.2,n*1.57,null,.45); e._amb=true; } },
+      amb:{n:3,pool:['grunt'],hp:1.3,every:2.6},
+      setup(){ for(let n=0;n<2;n++){ const e=dummy('grunt',3.0,n*3.14,null,1.3); e._amb=true; } },
       done(){ return c.dashes>=1; } },
 
     { t:'自动瞄准与开火',
       d:()=>'枪口会<u>自己锁定</u>最近的敌人，你不用调方向。<u>按住</u> '+kb(K().fire)+' 连射。'+
             (touch()?'手机上默认<u>连瞄带打全自动</u>，不用管右半屏。':'（HUD 上的 ⊙ 可开自动开火，开了连扳机都不用按）'),
       hint:'消灭 3 个目标',
-      amb:{n:4,pool:['grunt','runner'],hp:1.5,every:1.2},
+      amb:{n:3,pool:['grunt','runner'],hp:1.3,every:2.6},
       setup(){ wipe(); for(let n=0;n<3;n++)dummy('grunt',6+n,n*2.1,null,.5); },
       done(){ return c.kills>=3; },
       prog(){ return Math.min(1,c.kills/3); } },
@@ -92,7 +104,7 @@ const Tutor = (function(){
     { t:'切换目标',
       d:()=>'锁定的不一定是你想打的。按 '+kb(...K().turn.split('/').map(s=>s.trim()))+' 换一个目标。',
       hint:'切换一次目标',
-      amb:{n:5,pool:['runner','grunt'],hp:1.5,every:1.1},
+      amb:{n:3,pool:['runner','grunt'],hp:1.3,every:2.6},
       setup(){ wipe(); for(let n=0;n<3;n++)dummy('runner',7,n*2.1,null,.6); },
       done(){ return c.cycles>=1; } },
 
@@ -102,9 +114,12 @@ const Tutor = (function(){
             '这个键<u>不随布局改变</u>，'+kb(K().charge2)+' 也一样能用。'+
             (touch()?'手机上是「蓄力」键。':''),
       hint:'用蓄力重击打掉它',
-      amb:{n:2,pool:['swarm'],hp:1.3,every:2.6},
-      setup(){ wipe(); const e=dummy('brute',6,-Math.PI/2,null,.55);
-        e.armor=40; e.sp=0; Tutor._brute=e; },
+      // deliberately no ambient here: auto-aim locks the nearest enemy, so a stray
+      // swarm unit stole every charge shot and the armoured target never took a hit
+      setup(){ wipe(); Tutor._brute=makeBrute(); },
+      tick(){ if(c.heavy<1 && Tutor._brute && !Tutor._brute.alive){
+        Tutor._brute=makeBrute();          // it can be ground down by the Core; replace it
+        toast('目标已被核心炮台清除 · 换一只重装兵','#8d96bd'); } },
       done(){ return c.heavy>=1 && Tutor._brute && !Tutor._brute.alive; } },
 
     { t:'建造炮塔',
@@ -112,7 +127,7 @@ const Tutor = (function(){
             '<u>炮塔有数量上限</u>，每区不同，所以每一座都是决定。'+
             (touch()?'手机上点「菜单」选型号，再点「建造」。':''),
       hint:'建造一座炮塔',
-      amb:{n:5,pool:['grunt','swarm'],hp:1.5,every:1.2},
+      amb:{n:3,pool:['grunt','swarm'],hp:1.3,every:2.6},
       setup(){ wipe(); S.scrap=1200; selectBuild('arrow'); },
       done(){ return S.towers.length>=1; } },
 
@@ -120,7 +135,7 @@ const Tutor = (function(){
       d:()=>'站在炮塔旁按 '+kb('R')+' 升级它。数量有上限，<u>变强要靠升级</u>。'+
             '结构受损时，同一个键会先修好它。'+(touch()?'手机上点「升级」。':''),
       hint:'把它升到 LV2',
-      amb:{n:6,pool:['grunt','runner','swarm'],hp:1.5,every:1.0},
+      amb:{n:3,pool:['grunt','runner'],hp:1.3,every:2.6},
       setup(){ S.scrap=1200; },
       done(){ return S.towers.some(t=>t.lvl>=2); } },
 
@@ -128,15 +143,19 @@ const Tutor = (function(){
       d:()=>'按 '+kb('[')+kb(']')+' 可以<u>隔空</u>切换已建的炮塔，不必走过去。'+
             '选中后按 '+kb('1')+'～'+kb('8')+' 挑一个型号，再按 '+kb('V')+' 就地改造——'+
             '保留位置和塔位，按出售价折抵。',
-      hint:'把这座塔改造成别的型号',
-      amb:{n:6,pool:['grunt','swarm'],hp:1.5,every:1.0},
-      setup(){ S.scrap=1500; selectBuild('cannon'); },
-      done(){ return S.towers.some(t=>t.key!=='arrow'); } },
+      hint:'先用 [ ] 选中它，再按 V 改造',
+      amb:{n:3,pool:['grunt','swarm'],hp:1.3,every:2.6},
+      setup(){ S.scrap=1500; selectBuild('cannon');
+        S.usedTowerCycle=false; S.usedRefitKey=false; },
+      // it used to just look at the board -- any non-arrow turret passed, including
+      // one left over from an earlier step, without either key ever being pressed
+      done(){ return S.usedTowerCycle && S.usedRefitKey; },
+      prog(){ return ((S.usedTowerCycle?1:0)+(S.usedRefitKey?1:0))/2; } },
 
     { t:'出售',
       d:()=>'按 '+kb('T')+' 出售脚下或选中的炮塔，返还 70%。塔位紧张时，拆掉一座换个思路很正常。',
       hint:'卖掉一座炮塔',
-      amb:{n:4,pool:['grunt','swarm'],hp:1.5,every:1.4},
+      amb:{n:3,pool:['grunt','swarm'],hp:1.3,every:2.6},
       setup(){ Tutor._tw=S.towers.length; },
       done(){ return S.towers.length<Tutor._tw; } },
 
@@ -144,8 +163,8 @@ const Tutor = (function(){
       d:()=>ABILITIES.map(a=>kb(a.key)+' '+a.n+'（'+a.desc+'）').join('<br>')+
             '<br>冷却各自独立。'+(touch()?'手机上在左下角的技能栏。':''),
       hint:'依次放出三个技能',
-      amb:{n:9,pool:['swarm','grunt','runner'],hp:1.5,every:.7},
-      setup(){ wipe(); for(let n=0;n<8;n++)dummy('swarm',7,n*.79,null,.5);
+      amb:{n:3,pool:['swarm','grunt'],hp:1.3,every:2.4},
+      setup(){ wipe(); for(let n=0;n<4;n++)dummy('swarm',5.5,n*1.57,null,.9);
         for(const a of ABILITIES)S.abil[a.id].cd=0;
         Tutor._ab={}; },
       done(){ for(const a of ABILITIES) if(S.abil[a.id].cd>0)Tutor._ab[a.id]=1;
@@ -156,23 +175,23 @@ const Tutor = (function(){
       d:()=>'造成伤害会积攒大招。攒满后按 '+kb('Q')+' 释放一道可以扫过战场的光束。'+
             (touch()?'手机上是「大招」键。':''),
       hint:'释放大招',
-      amb:{n:8,pool:['grunt','swarm'],hp:1.5,every:.8},
+      amb:{n:3,pool:['grunt','swarm'],hp:1.3,every:2.4},
       setup(){ wipe(); S.P.ult=1; S.P.ultT=0;
-        for(let n=0;n<6;n++)dummy('grunt',8,n*1.05,null,.6); },
+        for(let n=0;n<3;n++)dummy('grunt',7,n*2.09,null,.9); },
       done(){ return S.P.ultT>0; } },
 
     { t:'关闭裂隙',
       d:()=>'裂隙是敌人的来源，<u>只有你的子弹和轨道轰炸能伤害它</u>——炮塔打不动。'+
             '不关掉它就会一直涌出增援。关闭若干道可换取<u>永久炮塔位</u>。',
       hint:'打掉这道裂隙',
-      amb:{n:4,pool:['grunt','swarm'],hp:1.3,every:2.0},
+      amb:{n:2,pool:['grunt'],hp:1.3,every:3.4},
       setup(){ wipe();
         const a=rnd(TAU);
         const r={x:clamp(CX+Math.cos(a)*7*TILE,TILE*3,W-TILE*3),
                  y:clamp(CY+Math.sin(a)*6*TILE,TILE*3,H-TILE*3),
                  hp:420,maxHp:420,queue:[],t:0,alive:true,flash:0,obj:null,idx:0,
                  over:1.0,overLeft:99,overflowing:false,
-                 everyOverride:1.8};   // pours visibly so the lesson actually lands
+                 everyOverride:3.4};   // visible enough to make the point, not a flood
         S.rifts.push(r); World.addRift(r); },
       done(){ return !S.rifts.some(r=>r.alive); } },
 
@@ -180,7 +199,7 @@ const Tutor = (function(){
       d:()=>'金色残骸能换一笔碎片，但必须<u>站着不动</u>把它拆完——移动或冲刺都会中断进度。'+
             '在战场中央站定三秒，是要付出代价的。',
       hint:'拆解一处残骸',
-      amb:{n:4,pool:['grunt','swarm'],hp:1.3,every:1.6},
+      amb:{n:2,pool:['grunt','swarm'],hp:1.3,every:3.4},
       setup(){ wipe(); clearSalvage();
         const a=rnd(TAU);
         const s={x:clamp(S.P.x+Math.cos(a)*3.5*TILE,TILE*2,W-TILE*2),
@@ -272,6 +291,7 @@ const Tutor = (function(){
       for(const s of S.shots) if(s.heavy&&!s._tut){ s._tut=true; c.heavy++; }
 
       ambient(dt);
+      if(STEPS[i].tick)STEPS[i].tick(dt);
       // updateRifts only runs inside an active wave, and the training run has none;
       // without this the rift step's "it keeps pouring out reinforcements" never happens
       if(S.rifts.some(r=>r.alive))updateRifts(dt);

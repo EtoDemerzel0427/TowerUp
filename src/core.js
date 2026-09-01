@@ -15,6 +15,7 @@ const S={
   kills:0, earned:0, abil:{}, overT:0, overArmed:false, sound:true, best:0, layout:'right',
   lastKill:0, purge:0, armorHint:false, autoFire:false, fineHint:false,
   slotEarned:0, riftProgress:0, riftsClosed:0,
+  usedTowerCycle:false, usedRefitKey:false,
   level:1, xp:0, xpNeed:0, cards:null, pendingCards:0, playerLives:3, pickT:0,
   stage:0, stageWaves:0, stageStartWave:0, coreUp:{}, teleporting:false, retries:0,
   keys:{}, mouse:{x:CX,y:CY-200,down:false,moved:0},
