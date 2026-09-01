@@ -645,7 +645,8 @@ const UI={
   },
  sync(){
   el.scrap.textContent=S.scrap;
-  el.lives.textContent='◆'.repeat(Math.max(0,S.playerLives))+'◇'.repeat(Math.max(0,S.diff.lives-S.playerLives));
+  const lm=maxLives();
+  el.lives.textContent='◆'.repeat(Math.max(0,S.playerLives))+'◇'.repeat(Math.max(0,lm-S.playerLives));
   el.livesChip.classList.toggle('low',S.playerLives<=1);
   renderBuildPick();
   el.power.textContent=S.towers.length+'/'+towerSlots();
@@ -748,6 +749,8 @@ const UI={
       '<span>'+u2.d+'</span><span class="uc">'+(maxed?'已满级':cost+' 碎片')+'</span>';
     b.onclick=()=>{ if(maxed||S.scrap<cost)return;
       S.scrap-=cost; S.coreUp[u2.id]=lv+1; applyCoreUpgrades(true); recalcPower();
+      if(u2.id==='life'){ S.playerLives=Math.min(maxLives(),S.playerLives+1);
+        toast('备用信标上线 · 命数 '+S.playerLives+' / '+maxLives(),'#6ee7a8'); }
       sfx('up'); UI.renderUpgrades(); UI.sync(); };
     el.upGrid.appendChild(b);
   }

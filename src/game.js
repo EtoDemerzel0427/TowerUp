@@ -346,7 +346,7 @@ function towerFire(t,s){
       }
       // heavy artillery: muzzle smoke and a blast ring at the barrel
       shock(ox,oy,oz,1.1,'#ffb45a',.26,.1);
-      for(let i=0;i<6;i++)part(ox,oy,oz,'#6b5b4a',{sp:rnd(1.6,.4),el:.5,life:.5,r:rnd(.2,.1),g:-1});
+      for(let i=0;i<3;i++)part(ox,oy,oz,'#6b5b4a',{sp:rnd(1.5,.4),el:.5,life:.45,r:rnd(.18,.09),g:-1});
       sfx('cannon',.8); muzzle(ox,oy,oz,'#ffb45a',12,ang); shake(.04); break;
     }
     case 'frost':{
@@ -355,8 +355,8 @@ function towerFire(t,s){
         dmg:s.dmg,splash:s.splash,slow:s.slow,freeze:s.freeze,src:t,color:t.def.c,r:.12});
       // frost: a crystalline puff at the barrel so the cold reads before impact
       shock(ox,oy,oz,.8,'#bfe4ff',.3,.08);
-      for(let i=0;i<5;i++)part(ox,oy,oz,pick(['#bfe4ff','#8ed8ff','#ffffff']),
-        {sp:rnd(1.4,.3),el:.9,life:.5,r:rnd(.11,.05),g:.5});
+      for(let i=0;i<3;i++)part(ox,oy,oz,pick(['#bfe4ff','#ffffff']),
+        {sp:rnd(1.3,.3),el:.9,life:.45,r:rnd(.1,.04),g:.5});
       sfx('frost',.7,rnd(1.1,.9)); break;
     }
     case 'toxin':{
@@ -378,12 +378,10 @@ function towerFire(t,s){
         if(!cur)break;
         hit.add(cur);
         // arc lightning: two overlaid jagged bolts and a spark ring at every hop
-        beam(from,{x:cur.x,y:cur.y,z:.45},'#e6dcff',4,.11,.26);
-        beam(from,{x:cur.x,y:cur.y,z:.45},'#8b6cff',2,.16,.34);
+        beam(from,{x:cur.x,y:cur.y,z:.45},'#d8ccff',3,.13,.30);
         hurt(cur,dmg,{src:t});
         if(s.stun)applyStun(cur,s.stun);
-        shock(cur.x,cur.y,.45,.9,'#c9b6ff',.22,.09);
-        burstFx(cur.x,cur.y,.5,'#b39dff',8,6,.1);
+        burstFx(cur.x,cur.y,.5,'#b39dff',5,5,.09);
         from={x:cur.x,y:cur.y,z:.45}; dmg*=s.falloff;
         let nx=null,nv=1e9;
         nearEnemies(cur.x,cur.y,3.2*TILE,e=>{ if(!e.alive||hit.has(e))return;
@@ -445,9 +443,9 @@ function flameTick(t,s,dt){
     if(s.ring){ for(let i=0;i<4;i++){const a=rnd(TAU);
       part(t.x+Math.cos(a)*R*.4,t.y+Math.sin(a)*R*.4,.5,'#ff9a3d',{sp:rnd(3,1),el:.4,life:.32,r:.15}); } }
     else { // fill the actual cone so the shape of the attack is visible
-      for(let i=0;i<7;i++){const a=ang+rnd(s.cone,-s.cone),d=rnd(R,TILE*.4);
+      for(let i=0;i<4;i++){const a=ang+rnd(s.cone,-s.cone),d=rnd(R,TILE*.4);
         part(t.x+Math.cos(a)*d,t.y+Math.sin(a)*d,.45+rnd(.4),
-          pick(['#ff8a2d','#ffc247','#ff5a20']),{sp:rnd(2.6,.7),el:.5,life:.34,r:rnd(.2,.1)}); } }
+          pick(['#ff8a2d','#ffc247']),{sp:rnd(2.4,.7),el:.5,life:.3,r:rnd(.18,.09)}); } }
     if(s.magma&&Math.random()<.75&&S.magma.length<22&&t.target)
       S.magma.push({x:t.target.x,y:t.target.y,r:.9,t:0,life:4.5,dps:s.burn*2.2,src:t});
     sfx('flame',.45);
@@ -839,18 +837,18 @@ function updateEnemy(e,dt){
   if(e.vulnT>0)e.vulnT-=dt;
   if(e.auraT>0)e.auraT-=dt;
   if(e.slowT>0){e.slowT-=dt; if(e.slowT<=0)e.slowF=0;
-    if(Math.random()<dt*10)part(e.x,e.y,.3+rnd(.4),'#bfe4ff',{sp:rnd(.7,.15),el:.7,life:.55,r:rnd(.09,.04),g:.6}); }
+    if(Math.random()<dt*3.5)part(e.x,e.y,.3+rnd(.4),'#bfe4ff',{sp:rnd(.6,.15),el:.7,life:.5,r:rnd(.07,.03),g:.6}); }
   // armour coming off should look like armour coming off
-  if((e.shred||0)>0&&Math.random()<dt*9)
-    part(e.x,e.y,.45,pick(['#ffd7a0','#cfd8f0']),{sp:rnd(2.2,.7),life:.4,r:rnd(.08,.04),g:7});
+  if((e.shred||0)>0&&Math.random()<dt*3.5)
+    part(e.x,e.y,.45,pick(['#ffd7a0','#cfd8f0']),{sp:rnd(2,.7),life:.35,r:rnd(.07,.03),g:7});
   if(e.stun>0)e.stun-=dt;
   if(e.burnT>0){ e.burnT-=dt; hurt(e,e.burnDps*dt,{noNum:true,pierceArmor:true,src:e.burnSrc});
-    if(Math.random()<dt*26)part(e.x,e.y,.35+rnd(.5),pick(['#ff8a2d','#ffc247','#ff5a20']),
-      {sp:rnd(1.6,.4),el:1.3,life:.5,r:rnd(.13,.06),g:-2.6});
+    if(Math.random()<dt*9)part(e.x,e.y,.35+rnd(.5),pick(['#ff8a2d','#ffc247']),
+      {sp:rnd(1.5,.4),el:1.3,life:.45,r:rnd(.11,.05),g:-2.4});
     if(e.burnT<=0)e.burnDps=0; }
   if(e.poisonT>0){ e.poisonT-=dt; hurt(e,e.poisonDps*dt,{noNum:true,pierceArmor:true,src:e.poisonSrc});
-    if(Math.random()<dt*20)part(e.x,e.y,.3+rnd(.4),pick(['#a6e22e','#7ec93c','#d4f06a']),
-      {sp:rnd(1.1,.25),el:1,life:.62,r:rnd(.11,.05),g:-1.6});
+    if(Math.random()<dt*7)part(e.x,e.y,.3+rnd(.4),pick(['#a6e22e','#7ec93c']),
+      {sp:rnd(1,.2),el:1,life:.55,r:rnd(.09,.04),g:-1.6});
     if(e.poisonT<=0){e.poisonDps=0;e.poisonPlague=false;} }
   if(!e.alive)return;
   if(e.shieldT>0)e.shieldT-=dt;
@@ -929,7 +927,7 @@ function updateEnemy(e,dt){
   }
   enemyRangedFire(e,dt);      // a mounted gun keeps working through a flinch
   if(e.stun>0){ e.curSp=0;
-    if(Math.random()<dt*18)part(e.x,e.y,.5+rnd(.3),'#bfeaff',{sp:rnd(1.3,.3),el:1,life:.35,r:rnd(.1,.05),g:-1});
+    if(Math.random()<dt*7)part(e.x,e.y,.5+rnd(.3),'#bfeaff',{sp:rnd(1.2,.3),el:1,life:.32,r:rnd(.08,.04),g:-1});
     return; }
   if(e.stagger>0&&!(e.windT>0&&e.windT<=.42)){ e.curSp=0;
     // once it is past the halfway point of the wind-up, chip damage no longer
@@ -1261,6 +1259,11 @@ function propAt(x,y,pad){
 
 /* ---------- the Core ---------- */
 function coreLv(id){ return S.coreUp[id]||0; }
+/* the purchasable growth line for the player, kept as read-at-use multipliers so
+   buying one mid-run can never double-apply onto S.st */
+function maxLives(){ return S.diff.lives + coreLv('life'); }
+function playerDmgMul(){ return 1+.12*coreLv('power'); }
+function playerDrMul(){ return Math.pow(.92,coreLv('armor')); }
 function applyCoreUpgrades(keepRatio){
   const ratio=keepRatio?clamp(S.core.hp/S.core.maxHp,0,1):1;
   S.core.maxHp=Math.round((CORE.hp+700*coreLv('hp'))*S.diff.core);
@@ -1315,7 +1318,7 @@ function healPlayer(v){ S.P.hp=Math.min(S.st.maxHp,S.P.hp+v); }
 function hurtPlayer(dmg,src,pierceArmor){
   const P=S.P;
   if(!P.alive||P.iframe>0||P.dashT>0)return;
-  let d=dmg*(pierceArmor?1:S.st.dr);   // a breaker's heavy strike goes through 复合装甲
+  let d=dmg*(pierceArmor?1:S.st.dr*playerDrMul());   // 复合装甲 + 个人装甲
   if(P.shield>0){ const a=Math.min(P.shield,d); P.shield-=a; d-=a;
     shock(P.x,P.y,.4,1.2,'#8fa4d8',.3);
     if(P.shield<=0)toast('力场耗尽','#8fa4d8');
@@ -1601,9 +1604,10 @@ function firePrimary(){
   for(let i=0;i<n;i++){
     const a=P.aim+(i-(n-1)/2)*spread+rnd(.026,-.026);
     const crit=st.crit&&Math.random()<st.crit;
+    const pm=playerDmgMul();
     S.shots.push({kind:'pbullet',x:P.x+Math.cos(a)*mz,y:P.y+Math.sin(a)*mz,z:.55,
       dx:Math.cos(a),dy:Math.sin(a),ang:a,sp:PLAYER.bulletSp*TILE,d:0,maxD:st.range*TILE*1.15,
-      dmg:st.dmg*(P.rageT>0?1.8:1),crit,pierce:st.pierce,explo:st.explo,hit:new Set(),
+      dmg:st.dmg*pm*(P.rageT>0?1.8:1),crit,pierce:st.pierce,explo:st.explo,hit:new Set(),
       color:crit?'#fff2b0':'#bfe9ff',r:PLAYER.bulletR,len:.62});
   }
   // 火力过载 is supposed to be the moment you stop rationing the trigger; having the
@@ -1629,7 +1633,7 @@ function releaseCharge(){
   const mz=TILE*.7, a=P.aim;
   S.shots.push({kind:'pbullet',x:P.x+Math.cos(a)*mz,y:P.y+Math.sin(a)*mz,z:.55,
     dx:Math.cos(a),dy:Math.sin(a),ang:a,sp:PLAYER.bulletSp*1.6*TILE,d:0,maxD:st.range*TILE*1.6,
-    dmg:st.dmg*mul,crit:false,pierce:99,explo:st.explo,hit:new Set(),
+    dmg:st.dmg*mul*playerDmgMul(),crit:false,pierce:99,explo:st.explo,hit:new Set(),
     color:'#fff6d0',r:PLAYER.bulletR*(1.5+k),len:1.5+k*1.6,heavy:true});
   P.heat=Math.min(st.heatMax,P.heat+PLAYER.chargeHeat*(.5+k));
   if(P.heat>=st.heatMax)P.overheat=PLAYER.overheatLock;
@@ -2331,7 +2335,7 @@ function beginTeleport(){
 function nextStage(){
   S.stage++; S.stageWaves=0; S.teleporting=false;
   S.stageStartWave=S.wave;
-  if(S.playerLives<S.diff.lives){ S.playerLives++; log('区域肃清 · 恢复 1 条命'); }
+  if(S.playerLives<maxLives()){ S.playerLives++; log('区域肃清 · 恢复 1 条命'); }
   const st=STAGES[S.stage];
   S.map=MAPS.find(m=>m.id===st.map);
   S.obstacles=buildArena(S.map);

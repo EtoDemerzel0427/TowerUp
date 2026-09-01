@@ -140,6 +140,12 @@ const CORE_UP=[
  {id:'regen', n:'维修单元', gl:'✚', d:'核心每秒回复 +9',          cost:240, step:90,  max:5},
  {id:'store', n:'传送储备', gl:'⬡', d:'每个新区域额外 +220 碎片',  cost:250, step:90,  max:4},
  {id:'slot',  n:'扩容基座', gl:'▣', d:'炮塔上限 +1（与「据点扩建」共享 +3 上限）', cost:340, step:210, max:3},
+ /* Lives were hard-capped at the difficulty's starting count and could never grow,
+    and the player's own armour and gun only improved through random level-up cards.
+    These three are the steady, purchasable line: you can always work toward them. */
+ {id:'life',  n:'备用信标', gl:'✜', d:'命数上限 +1，并立即补满一条', cost:400, step:300, max:3},
+ {id:'armor', n:'个人装甲', gl:'⛊', d:'你受到的伤害 -8%（可叠加）',  cost:260, step:120, max:5},
+ {id:'power', n:'武器校准', gl:'✧', d:'你的武器伤害 +12%（可叠加）', cost:280, step:130, max:6},
 ];
 function coreUpCost(u,lv){ return u.cost+u.step*lv; }
 const DIFFS=[
