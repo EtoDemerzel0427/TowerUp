@@ -10,7 +10,12 @@ const dist2=(ax,ay,bx,by)=>{const dx=ax-bx,dy=ay-by;return dx*dx+dy*dy;};
 const norm=a=>((a+Math.PI)%TAU+TAU)%TAU-Math.PI;
 
 /* ---------- the Core you must protect ---------- */
-const CORE={hp:3000,r:1.5,guns:4,gunDmg:16,gunRate:1.1,gunRange:6.5};
+/* The Core's own battery was quietly doing 29% of all damage in the run -- more
+   than the turrets the player actually built, and needing no input whatsoever.
+   It is meant to be the last thing standing between the swarm and the objective,
+   not a third of your damage. The 主炮强化 / 增设炮口 upgrades still let a player
+   invest back into it if that is the build they want. */
+const CORE={hp:3000,r:1.5,guns:4,gunDmg:12,gunRate:.5,gunRange:6.0};
 
 /* ---------- player ---------- */
 const PLAYER={
@@ -106,7 +111,13 @@ const STAGES=[
  {map:'forge',   name:'第四区 · 熔炉',   waves:7, desc:'玄武岩长墙 · 岩浆池持续灼烧'},
  {map:'gate',    name:'终区 · 终焉之门', waves:5, desc:'虚空裸地 · 深渊主宰在此等待', finale:true},
 ];
-const BUILD_STEP=.30;   // each existing turret raises the price of the next one
+/* The original design priced turret spam instead of capping it -- "spamming is
+   possible, it is just a bad deal". In practice a well-built line did 70% of all
+   damage and the player was a spectator to their own run. A hard cap makes each
+   emplacement a decision and puts the fighting back on you; the price ramp stays,
+   but gently, since the cap is now the real constraint. */
+const BUILD_STEP=.14;
+const TOWER_SLOTS_BASE=4;   // +1 per region reached, +1 per 扩容基座 core upgrade
 const TOWER_HP=[620,940,1300,1760], TOWER_HP_ELITE=520;
 const CORE_UP=[
  {id:'logi',  n:'工程模块', gl:'⚙', d:'炮塔造价增幅 -25%（可叠加）',  cost:230, step:95,  max:4},
@@ -116,6 +127,7 @@ const CORE_UP=[
  {id:'shield',n:'力场护盾', gl:'◈', d:'核心获得可再生护盾 +12%',   cost:300, step:110, max:5},
  {id:'regen', n:'维修单元', gl:'✚', d:'核心每秒回复 +9',          cost:240, step:90,  max:5},
  {id:'store', n:'传送储备', gl:'⬡', d:'每个新区域额外 +220 碎片',  cost:250, step:90,  max:4},
+ {id:'slot',  n:'扩容基座', gl:'▣', d:'炮塔上限 +1',               cost:340, step:210, max:3},
 ];
 function coreUpCost(u,lv){ return u.cost+u.step*lv; }
 const DIFFS=[
@@ -265,9 +277,16 @@ function waveComp(w,wis,wlen,stage){
   /* Region one ends on 23 units; region two used to open on 43 -- a doubling that
      lands the wave after a teleport refunds and removes every turret you own.
      Ramp the trash counts more gently through the early regions. */
-  add('grunt',Math.min(40,5+w*1.5|0),Math.max(.16,.55-w*.014));
-  if(w>=2)add('runner',Math.min(24,1+w*.8|0),Math.max(.16,.45-w*.012),1.5);
-  if(w>=3)add('swarm',Math.min(46,3+w*1.55|0),Math.max(.08,.22-w*.006),2.5);
+  /* Region three was putting 38-47 enemies on screen at once, ~30 of them inside
+     your own view, on top of 800 particles and 250 loot orbs. At that density you
+     are not fighting anything, you are spraying into soup. Fewer bodies, so each
+     one is a thing you can see and react to. */
+  // the gap floors were .16s, so a late wave arrived faster than it could die and
+  // piled up on screen; same content, spread out enough to read
+  const pk=packScale(w), sq=n=>Math.max(1,Math.round(n/pk));
+  add('grunt',sq(Math.min(24,4+w*1.15|0)),Math.max(.32,.55-w*.014));
+  if(w>=2)add('runner',sq(Math.min(14,1+w*.6|0)),Math.max(.34,.45-w*.012),1.5);
+  if(w>=3)add('swarm',sq(Math.min(26,3+w*1.15|0)),Math.max(.19,.22-w*.006),2.5);
   if(w>=5)add('flyer',Math.min(20,1+(w-4)*.9|0),Math.max(.22,.5-w*.012),3.2);
   if(w>=6)add('shooter',Math.min(14,1+(w-5)*.6|0),.9,4.5);
   if(w>=7)add('brute',Math.min(16,1+(w-6)*.6|0),1.0,2.0);
@@ -283,6 +302,13 @@ const LINK_R=3.3;
 /* Measured over region 1-3: enemy health climbed 151% while the player's own gun
    climbed 12%, and the extra exponential term switched on at wave 10 -- exactly
    where region two ends. That is where runs were dying. Start it later. */
+/* Late waves expressed difficulty as more bodies, and 40+ identical grunts is not
+   a fight, it is soup you spray into. Past the early regions the same health
+   budget buys fewer, tougher trash units instead: counts are divided by this and
+   each survivor's health is multiplied by it, so the wave weighs the same but you
+   can actually see the thing you are shooting. */
+const TRASH=['grunt','runner','swarm'];
+function packScale(w){ return clamp(1+(w-7)*.13,1,2.8); }
 function hpScale(w){return (1+.105*(w-1))*Math.pow(1.035,Math.max(0,w-14));}
 function spScale(w){return Math.min(1.45,1+.008*Math.max(0,w-4));}
 

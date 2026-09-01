@@ -575,9 +575,9 @@ const UI={
   el.scrap.textContent=S.scrap;
   el.lives.textContent='◆'.repeat(Math.max(0,S.playerLives))+'◇'.repeat(Math.max(0,S.diff.lives-S.playerLives));
   el.livesChip.classList.toggle('low',S.playerLives<=1);
-  el.power.textContent=S.towers.length;
+  el.power.textContent=S.towers.length+'/'+towerSlots();
   el.mul.textContent='×'+buildScale().toFixed(1);
-  el.powerChip.classList.toggle('full',buildScale()>2.2);
+  el.powerChip.classList.toggle('full',slotsFull());
   const stg=STAGES[S.stage];
   el.kStage.textContent='第'+(S.stage+1)+'区';
   el.wave.textContent=Math.min(S.stageWaves+(S.waveActive?1:0),stg.waves)+'/'+stg.waves;
@@ -830,6 +830,9 @@ function bindInput(){
     if(k==='e'){ buildHere(); return; }
     if(k==='r'){ upgradeHere(); return; }
     if(k==='t'){ sellHere(); return; }
+    // with a hard cap on emplacements you spend most of the game upgrading rather
+    // than building, so reaching a turret should not mean walking to it
+    if(k==='['||k===']'){ cycleTowerSel(k===']'?1:-1); return; }
     if(k==='g'){ callEarly(); return; }
     if(k==='p'){ togglePause(); return; }
     if(k==='tab'){ cycleSpeed(); return; }
@@ -849,6 +852,16 @@ function bindInput(){
   el.bPause.onclick=togglePause;
   el.bSound.onclick=toggleSound;
   el.bLayout.onclick=toggleLayout;
+}
+/* step the selection through your turrets so R / T can act on one from anywhere */
+function cycleTowerSel(dir){
+  if(!S.towers.length){ sfx('err'); toast('还没有炮塔','#8d96bd'); return; }
+  const list=S.towers.slice().sort((a,b)=>(a.row-b.row)||(a.col-b.col));
+  const i=S.sel?list.indexOf(S.sel):-1;
+  const t=list[((i<0?(dir>0?-1:0):i)+dir+list.length)%list.length];
+  selectTower(t); sfx('pick',.35,1.2);
+  const up=upgradeCost(t);
+  toast(t.def.name+' LV'+t.lvl+(up!=null?' · R 升级需 '+up:' · 已满级'),t.def.c);
 }
 function togglePause(){ if(S.cards)return;
   S.paused=!S.paused;el.bPause.textContent=S.paused?'▶':'⏸';el.bPause.classList.toggle('on',S.paused);}
@@ -900,6 +913,7 @@ function renderTips(){
     '<div><b>'+L.fire+'</b> 开火（按住连射）· <b>'+L.charge+'</b> 蓄力重击（无视护甲）</div>'+
     '<div><b>Q</b> 歼灭光束（造成伤害充能，满了可释放）</div>'+
     '<div><b>1–8</b> 选炮塔 · <b>E</b> 就地建造 · <b>R</b> 升级 · <b>T</b> 出售</div>'+
+    '<div><b>[ ]</b> 切换已建炮塔（可隔空升级）· 炮塔有数量上限，靠升级变强</div>'+
     '<div><b>Z X C</b> 战术技能 · <b>G</b> 提前出击 · <b>Tab</b> 加速 · <b>P</b> 暂停</div>';
 }
 function buildStart(){
@@ -943,7 +957,7 @@ function startGame(){
   S.scrap=pickDiff.scrap; S.wave=0; S.time=0; S.rest=REST; S.qt=0;
   S.running=true; S.over=false; S.paused=false; S.victory=false; S.speed=1; S.waveActive=false;
   S.kills=0; S.earned=0; S.combo=0; S.comboT=0; S.overT=0; S.build=null; S.aim=null; S.sel=null;
-  S.lastKill=0; S.purge=0; S.armorHint=false;
+  S.lastKill=0; S.purge=0; S.armorHint=false; S.eliteHint=false;
   S.shake=0; S.flash=0;
   S.level=1; S.xp=0; S.xpNeed=xpForLevel(1); S.pendingCards=0; S.cards=null; S.cardCount={};
   S.st=freshStats(); S.P=newPlayer();

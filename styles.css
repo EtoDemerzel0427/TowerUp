@@ -399,12 +399,13 @@ body.shortscreen .minimap{display:none}
    HUD for the same thumbs. Ask for landscape instead of shipping a bad shape. */
 .rotate{display:none}
 @media (max-width:900px) and (orientation:portrait){
-  .rotate{display:flex;position:fixed;inset:0;z-index:200;flex-direction:column;
+  /* touch devices only -- a desktop window dragged narrow is not a phone held upright */
+  body.touchmode .rotate{display:flex;position:fixed;inset:0;z-index:200;flex-direction:column;
     align-items:center;justify-content:center;gap:14px;text-align:center;padding:32px;
     background:radial-gradient(ellipse at center,#0d1424,#05070f 70%)}
-  .rotate svg{width:76px;height:76px;animation:rotatehint 2.4s ease-in-out infinite}
-  .rotate b{font-size:19px;letter-spacing:.16em;color:var(--cyan)}
-  .rotate span{font-size:12.5px;line-height:1.7;color:var(--dim);max-width:19em}
+  body.touchmode .rotate svg{width:76px;height:76px;animation:rotatehint 2.4s ease-in-out infinite}
+  body.touchmode .rotate b{font-size:19px;letter-spacing:.16em;color:var(--cyan)}
+  body.touchmode .rotate span{font-size:12.5px;line-height:1.7;color:var(--dim);max-width:19em}
 }
 @keyframes rotatehint{0%,55%{transform:rotate(0)}80%,100%{transform:rotate(-90deg)}}
 /* portrait phones: give the arena a usable shape and keep the sticks clear of the HUD */

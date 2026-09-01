@@ -133,6 +133,7 @@ function blockedTile(c,r){
   return false;
 }
 function canBuild(c,r){
+  if(typeof slotsFull==='function'&&slotsFull())return false;   // emplacements are capped
   if(c<1||r<1||c>=COLS-1||r>=ROWS-1)return false;
   if(blockedTile(c,r))return false;
   return !S.towers.some(t=>t.col===c&&t.row===r);
@@ -295,7 +296,7 @@ const tone2=chime;
 const _CC={};
 const C3=s=>_CC[s]||(_CC[s]=new THREE.Color(s));
 function part(x,y,z,c,o={}){
-  if(S.parts.length>1100)return;
+  if(S.parts.length>400)return;
   const a=o.ang!==undefined?o.ang:rnd(TAU), sp=o.sp!==undefined?o.sp:rnd(4,1);
   const el=o.el!==undefined?o.el:rnd(1.1,-.15), hs=Math.cos(el);
   S.parts.push({x,y,z,vx:Math.cos(a)*sp*hs,vy:Math.sin(a)*sp*hs,vz:Math.sin(el)*sp,
@@ -303,7 +304,7 @@ function part(x,y,z,c,o={}){
 }
 function burstFx(x,y,z,c,n,sp=5,r=.14){for(let i=0;i<n;i++)part(x,y,z,c,{sp:rnd(sp,sp*.2),r:rnd(r,r*.4)});}
 function shock(x,y,z,r,c,life=.45,w=.16){S.shocks.push({x,y,z,r0:r*.12,r1:r,c,t:0,life,w});}
-function text(x,y,z,s,c,size=13){if(S.texts.length>70)return;S.texts.push({x,y,z,s,c,size,t:0,life:.9,vz:1.6});}
+function text(x,y,z,s,c,size=13){if(S.texts.length>16)return;S.texts.push({x,y,z,s,c,size,t:0,life:.9,vz:1.6});}
 function beam(a,b,c,w=1,life=.13,jag=0){S.beams.push({a,b,col:C3(c),w,t:0,life,jag,seed:Math.random()*99});}
 function shake(v){S.shake=Math.min(1.6,S.shake+v);}
 /* a couple of frames of near-freeze so heavy hits land */

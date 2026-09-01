@@ -1,6 +1,7 @@
 /* ===================== GAME LOGIC ===================== */
 const MULT_KEYS=['dmg','rate','range','splash','slow','shred','buffDmg','buffRate'];
 const REST=13, VICTORY_WAVE=30;
+const ELITE_TOWER_RES=.45;   // turret damage multiplier against elites/champions/bosses
 
 /* ---------- player stats (mutated by level-up cards) ---------- */
 /* control layout: 'right' = arrows move + WASD aims (default), 'left' = the mirror */
@@ -120,6 +121,9 @@ function buildScale(){
   const relief=Math.pow(.75,S.coreUp.logi||0);
   return 1+BUILD_STEP*relief*S.towers.length;
 }
+/* how many emplacements you are allowed to hold at once */
+function towerSlots(){ return TOWER_SLOTS_BASE + S.stage + (S.coreUp.slot||0); }
+function slotsFull(){ return S.towers.length>=towerSlots(); }
 const towerCost=key=>Math.round(TOWERS[key].cost*S.st.cost*buildScale());
 function towerPower(t){ return (t.def.power||1)+(t.lvl>=4?1:0); }
 function recalcPower(){ /* legacy hook: build pressure is a price now, not a cap */ }
@@ -132,6 +136,9 @@ const towerUnlocked=key=>S.stage>=(TOWERS[key].unlock||0);
 function unlockText(key){ return '第 '+((TOWERS[key].unlock||0)+1)+' 区解锁'; }
 function placeTower(key,c,r){
   if(!towerUnlocked(key)){ sfx('err'); toast(TOWERS[key].name+' 尚未解锁 · '+unlockText(key),'#8d96bd'); return false; }
+  if(slotsFull()){ sfx('err');
+    toast('炮塔已满 '+S.towers.length+'/'+towerSlots()+' · 升级现有炮塔，或出售一座','#ff4d5e');
+    return false; }
   const cost=towerCost(key);
   if(S.scrap<cost){sfx('err');toast('碎片不足 · 还差 '+(cost-S.scrap),'#ff4d5e');return false;}
   if(!canBuild(c,r)){sfx('err');toast(buildBlockReason(c,r),'#ff4d5e');return false;}
@@ -178,6 +185,7 @@ function sellTower(t){
 function playerTile(){ return {c:Math.floor(S.P.x/TILE), r:Math.floor(S.P.y/TILE)}; }
 /* E: plant the selected turret at your feet, or inspect what is already there */
 function buildBlockReason(c,r){
+  if(slotsFull())return '炮塔已满 '+S.towers.length+'/'+towerSlots();
   if(c<1||r<1||c>=COLS-1||r>=ROWS-1)return '太靠近战场边缘';
   if(towerAt(c,r))return '此处已有炮塔';
   if(dist2((c+.5)*TILE,(r+.5)*TILE,CX,CY)<((CORE.r+1.15)*TILE)**2)return '核心平台上不能建造';
@@ -438,6 +446,15 @@ function hurt(e,amount,o={}){
   let blocked=false;
   if(!o.pierceArmor){ const ar=Math.max(0,e.armor-(e.shred||0)-(o.pen||0));
     blocked=ar>0&&amount-ar<amount*.4; dmg=Math.max(amount*.15,amount-ar); }
+  /* Measured across region three: turrets dealt 70% of all damage, the player 18%.
+     With the guns killing everything including the champions, building well was
+     the whole game and the character was a spectator. Trash is still turret food;
+     anything with a name resists turret fire, so breaking it is your job. */
+  if((e.affix||e.mini||e.boss)&&o.src&&o.src.key&&o.src.lvl){
+    dmg*=ELITE_TOWER_RES;
+    if(!S.eliteHint){ S.eliteHint=true;
+      toast('精英单位抗拒炮塔火力 · 需要你亲自击破','#ffc247'); }
+  }
   if(e.vulnT>0)dmg*=1+e.vuln;
   if(e.markT>0)dmg*=1.3;
   if(e.auraT>0)dmg*=.82;
@@ -480,7 +497,7 @@ function hurt(e,amount,o={}){
   }
   if(o.fromPlayer&&S.st.leech&&S.P.alive) healPlayer(dmg*S.st.leech);
   if(o.fromPlayer&&S.P.alive&&S.P.ultT<=0)ultCharge(amount);
-  e.numAcc+=dmg;
+  if(o.fromPlayer)e.numAcc+=dmg;   // turret chip damage does not need a readout
   if(o.crit)text(e.x,e.y,1.2,'暴击 '+Math.round(dmg),'#fff2b0',16);
   if(e.hp<=0)kill(e,o.src,o.fromPlayer);
   return dmg;
@@ -557,14 +574,23 @@ function kill(e,src,byPlayer){
   }
   World.removeEnemy(e,true);
 }
+/* A busy wave was leaving 260 loot orbs lying on the floor, which is not a reward,
+   it is litter. One orb of each kind per kill, and orbs that land on top of each
+   other merge into one worth the sum. */
+const DROP_MERGE=TILE*.9;
+function addDrop(kind,x,y,v){
+  for(const d of S.drops){
+    if(d.kind!==kind)continue;
+    if(dist2(d.x,d.y,x,y)<DROP_MERGE*DROP_MERGE){ d.v+=v; d.t=0; return; }
+  }
+  S.drops.push({kind,x,y,v,t:0});
+}
 function dropLoot(x,y,scrap,xp,boss){
-  const n=boss?14:1+(scrap>8?2:0);
-  for(let i=0;i<n;i++)
-    S.drops.push({kind:'scrap',x:x+rnd(18,-18),y:y+rnd(18,-18),v:Math.ceil(scrap/n),t:0});
-  const nx=boss?10:1+(xp>10?1:0);
-  for(let i=0;i<nx;i++)
-    S.drops.push({kind:'xp',x:x+rnd(18,-18),y:y+rnd(18,-18),v:Math.ceil(xp/nx),t:0});
-  if(S.drops.length>260)S.drops.splice(0,S.drops.length-260);
+  const n=boss?5:1;
+  for(let i=0;i<n;i++)addDrop('scrap',x+rnd(18,-18),y+rnd(18,-18),Math.ceil(scrap/n));
+  const nx=boss?4:1;
+  for(let i=0;i<nx;i++)addDrop('xp',x+rnd(18,-18),y+rnd(18,-18),Math.ceil(xp/nx));
+  if(S.drops.length>90)S.drops.splice(0,S.drops.length-90);
 }
 
 /* ---------- enemies ---------- */
@@ -596,6 +622,8 @@ function spawnEnemyAt(type,x,y,hpMulOverride,opt){
   const A=opt&&opt.affix?AFFIX[opt.affix]:null;
   const MB=opt&&opt.mini?opt.mini:null;
   let hpMul=hpMulOverride!=null?hpMulOverride:hpScale(S.wave)*S.diff.hp;
+  // fewer trash bodies, each carrying the health the missing ones would have had
+  if(hpMulOverride==null&&TRASH.includes(type))hpMul*=packScale(S.wave);
   if(A)hpMul*=A.hp;
   if(MB)hpMul*=MB.hp;
   const e={
@@ -1183,7 +1211,7 @@ function updateCore(dt){
       const a=Math.atan2(best.y-CY,best.x-CX);
       const ox=CX+Math.cos(a)*CORE.r*TILE, oy=CY+Math.sin(a)*CORE.r*TILE;
       beam({x:ox,y:oy,z:.9},{x:best.x,y:best.y,z:.5},'#9fd8ff',2,.1);
-      hurt(best,CORE.gunDmg*(1+S.wave*.09)*(S.core.dmgMul||1),{});
+      hurt(best,CORE.gunDmg*(1+S.wave*.09)*(S.core.dmgMul||1),{src:S.core});   // attributable
       muzzle(ox,oy,.9,'#9fd8ff',3,a);
       sfx('shoot',.35,1.5);
     }
