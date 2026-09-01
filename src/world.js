@@ -117,10 +117,19 @@ function fit(){
   // match the render shape to the element, so portrait phones do not get a letterbox slit
   const b=boardEl.getBoundingClientRect();
   if(b.width>2&&b.height>2){
-    const ar=clamp(b.width/b.height,.62,2.1);
+    // a full-screen phone is around 0.46 wide/tall; the old .62 floor letterboxed it
+    const ar=clamp(b.width/b.height,.42,2.1);
     VW=1200; VH=Math.round(1200/ar);
   }
-  if(ren){ ren.setSize(VW,VH,false); }
+  // VW/VH stay the logical space the HUD draws in; the render buffer is capped
+  // separately so a tall phone does not end up rendering a 3MP frame with bloom
+  if(ren){
+    // setSize is multiplied by the pixel ratio, so cap against the real buffer
+    const pr=ren.getPixelRatio()||1;
+    let rw=VW, rh=VH; const MAXPIX=2.1e6, pix=rw*pr*rh*pr;
+    if(pix>MAXPIX){ const k=Math.sqrt(MAXPIX/pix); rw=Math.round(rw*k); rh=Math.round(rh*k); }
+    ren.setSize(rw,rh,false);
+  }
   if(cam){ cam.aspect=VW/VH; cam.updateProjectionMatrix(); }
   const dpr=Math.min(2,devicePixelRatio||1);
   fx2d.width=Math.round(VW*dpr); fx2d.height=Math.round(VH*dpr);
@@ -374,14 +383,26 @@ function proj(x,y,z){
 function frame(dt,now){
   // camera follows the player, clamped so we never stare off the arena
   const ar=VW/VH;
+  /* The camera was framed for a wide screen. On a full-height portrait phone the
+     aspect drops to ~0.46, which squeezes the horizontal field of view down to
+     about 22 degrees -- you simply cannot see what is walking in from the sides.
+     Widen the lens and pull back as the screen narrows to win that view back. */
+  const REF_AR=1200/680;
+  let wantFov=46, pull=1;
+  if(ar<REF_AR){
+    const k=clamp(REF_AR/ar,1,3.9);
+    wantFov=Math.min(74,46*Math.pow(k,.42));
+    pull=Math.min(1.75,Math.pow(k,.30));
+  }
+  if(Math.abs(cam.fov-wantFov)>.01){ cam.fov=wantFov; cam.updateProjectionMatrix(); }
   const marginX=ar<1?5.4:7.2, marginZ=ar<1?6.5:3.6;
   const tx=clamp(WX(S.cam.x),-HALFW+marginX,HALFW-marginX);
   const tz=clamp(WZ(S.cam.y),-HALFH+marginZ,HALFH-marginZ);
   camTarget.x=lerp(camTarget.x,tx,Math.min(1,dt*6));
   camTarget.z=lerp(camTarget.z,tz,Math.min(1,dt*6));
   const sh=S.shake;
-  cam.position.set(camTarget.x+CAM_OFF.x+(Math.random()-.5)*sh,CAM_OFF.y+(Math.random()-.5)*sh,
-                   camTarget.z+CAM_OFF.z+(Math.random()-.5)*sh);
+  cam.position.set(camTarget.x+CAM_OFF.x*pull+(Math.random()-.5)*sh,CAM_OFF.y*pull+(Math.random()-.5)*sh,
+                   camTarget.z+CAM_OFF.z*pull+(Math.random()-.5)*sh);
   cam.lookAt(camTarget.x+(Math.random()-.5)*sh*.4,0,camTarget.z);
   if(World_sun){ World_sun.position.set(camTarget.x+11,26,camTarget.z+10);
     World_sun.target.position.set(camTarget.x,0,camTarget.z); World_sun.target.updateMatrixWorld(); }

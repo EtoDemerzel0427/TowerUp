@@ -371,9 +371,10 @@ function drawOverlay(){
       const st=S.touch[slot]; if(!st.act)continue;
       const col=slot==='move'?'159,232,255':'255,232,154';
       c2.strokeStyle='rgba('+col+',.35)'; c2.lineWidth=2;
-      c2.beginPath(); c2.arc(st.ox,st.oy,56,0,TAU); c2.stroke();
+      const R=S.touch.r||56;
+      c2.beginPath(); c2.arc(st.ox,st.oy,R,0,TAU); c2.stroke();
       c2.fillStyle='rgba('+col+',.18)'; c2.fill();
-      c2.beginPath(); c2.arc(st.ox+Math.cos(st.a)*st.m*56,st.oy+Math.sin(st.a)*st.m*56,22,0,TAU);
+      c2.beginPath(); c2.arc(st.ox+Math.cos(st.a)*st.m*R,st.oy+Math.sin(st.a)*st.m*R,R*.38,0,TAU);
       c2.fillStyle='rgba('+col+',.55)'; c2.fill();
     }
   }
@@ -531,9 +532,12 @@ function renderInspector(){
 const fmt=n=>n>=10000?(n/1000).toFixed(0)+'k':n>=1000?(n/1000).toFixed(1)+'k':Math.round(n);
 
 function renderWavePrev(){
-  const w=S.wave+1, comp=waveComp(w), agg={};
+  const w=S.wave+1;
+  // preview has to use the same region-relative cadence the spawner does
+  const wlen=STAGES[S.stage].waves, wis=Math.min(wlen,S.stageWaves+1);
+  const comp=waveComp(w,wis,wlen,S.stage), agg={};
   for(const g of comp)agg[g.t]=(agg[g.t]||0)+g.n;
-  el.waveTag.textContent='WAVE '+String(w).padStart(2,'0')+(w%5===0?' · BOSS':'');
+  el.waveTag.textContent='WAVE '+String(w).padStart(2,'0')+(wis>=wlen?' · BOSS':wis===wlen-1?' · 首领':'');
   const mb=MINIBOSS[S.map.id]||MINIBOSS.ring;
   el.wavePrev.innerHTML=Object.entries(agg).map(([t,n])=>{
     if(t==='__elite')
@@ -692,11 +696,22 @@ const UI={
 function isTouch(){
   return matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 }
+/* Full stick deflection has to be a real thumb travel, not a board-space constant:
+   VW is always 1200 regardless of screen width, so the old fixed 56 meant the aim
+   stick hit full tilt after ~17 physical pixels on a phone -- unusable. */
+function stickRadius(){
+  const b=document.getElementById('board').getBoundingClientRect();
+  if(!b.width)return 56;
+  const px=clamp(Math.min(b.width,b.height)*.19,54,104);   // physical travel we want
+  return px/b.width*VW;                                     // ...expressed in board units
+}
 function bindTouch(){
   const ui=$('touchUI');
   if(!isTouch())return;
   S.touch.on=true; ui.classList.remove('hide');
   const board=document.getElementById('board');
+  S.touch.r=stickRadius();
+  addEventListener('resize',()=>{S.touch.r=stickRadius();});
   const stick=(zoneId,slot)=>{
     const z=$(zoneId); let id=null;
     const st=S.touch[slot];
@@ -705,14 +720,16 @@ function bindTouch(){
     z.addEventListener('pointerdown',ev=>{
       if(id!==null)return; id=ev.pointerId; z.setPointerCapture(id);
       ac();
-      const p=rectPt(ev); st.ox=p.x; st.oy=p.y; st.x=p.x; st.y=p.y; st.a=0; st.m=0; st.act=true;
+      const p=rectPt(ev); st.ox=p.x; st.oy=p.y; st.x=p.x; st.y=p.y;
+      // resting the thumb must not mean "aim due east": hold the current heading
+      st.a=(slot==='aim'&&S.P)?S.P.aim:0; st.m=0; st.act=true;
       ev.preventDefault();
     });
     z.addEventListener('pointermove',ev=>{
       if(ev.pointerId!==id)return;
       const p=rectPt(ev); st.x=p.x; st.y=p.y;
       const dx=p.x-st.ox, dy=p.y-st.oy, d=Math.hypot(dx,dy);
-      const MAXR=56;
+      const MAXR=S.touch.r||stickRadius();
       if(d>MAXR){ st.ox+=dx*(1-MAXR/d); st.oy+=dy*(1-MAXR/d); }
       const dx2=st.x-st.ox, dy2=st.y-st.oy, d2=Math.hypot(dx2,dy2);
       st.a=Math.atan2(dy2,dx2); st.m=clamp(d2/MAXR,0,1);
@@ -900,6 +917,7 @@ function startGame(){
   S.scrap=pickDiff.scrap; S.wave=0; S.time=0; S.rest=REST; S.qt=0;
   S.running=true; S.over=false; S.paused=false; S.victory=false; S.speed=1; S.waveActive=false;
   S.kills=0; S.earned=0; S.combo=0; S.comboT=0; S.overT=0; S.build=null; S.aim=null; S.sel=null;
+  S.lastKill=0; S.purge=0; S.armorHint=false;
   S.shake=0; S.flash=0;
   S.level=1; S.xp=0; S.xpNeed=xpForLevel(1); S.pendingCards=0; S.cards=null; S.cardCount={};
   S.st=freshStats(); S.P=newPlayer();

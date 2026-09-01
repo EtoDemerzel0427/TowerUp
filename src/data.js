@@ -196,7 +196,7 @@ const ENEMIES={
 /* ---------- elite affixes: ordinary units promoted into real threats ---------- */
 const AFFIX={
  berserk:{n:'狂暴',c:'#ff5a3d',hp:1.9,sp:1.45,atk:1.35,ai:'hunter',d:'直冲你而来，并会突进扑击'},
- bulwark:{n:'铁壁',c:'#8fa4d8',hp:2.2,armor:1.9,sp:.85,ai:'breaker',d:'优先拆你的炮塔 · 用蓄力重击破甲'},
+ bulwark:{n:'铁壁',c:'#8fa4d8',hp:2.2,armor:1.9,sp:.9,ai:'breaker',d:'优先拆你的炮塔 · 蓄力重击无视你的减伤，但蓄力时可被打断'},
  revenant:{n:'再生',c:'#7ef0a8',hp:2.1,regen:.028,ai:'coward',d:'受伤就后撤回血，必须追上去打死'},
  volatile:{n:'不稳定',c:'#ffc247',hp:1.8,sp:1.25,death:'blast',ai:'bomber',d:'自杀式冲锋，贴近即引爆'},
  warden:{n:'督战',c:'#c98cff',hp:2.2,aura:3.6,ai:'commander',d:'躲在队伍后方指挥，加速并减伤友军'},
@@ -226,14 +226,29 @@ const PICKUP_KEYS=Object.keys(PICKUPS);
 
 /* ---------- waves: spawn at the arena rim, from every side ---------- */
 function eliteCount(w){ return w<4?0:Math.min(6,1+Math.floor((w-4)/3)); }
-function waveComp(w){
+/* Each region ends on its own boss, with its named heavy the wave before.
+   This used to key off the global wave number (w%5), but the regions are 5/6/7/7/5
+   waves long, so from region two onward the cadence drifted: the boss landed
+   mid-region and the region's *final* wave was a bigger ordinary wave than the
+   boss wave itself. wis = 1-based wave inside the region, wlen = region length. */
+const BOSSPLAN=[
+ {t:'jug', n:1},   // 第一区 · 攻城巨兽
+ {t:'jug', n:1},   // 第二区 · 攻城巨兽（更硬，但还不是领主）
+ {t:'boss',n:1},   // 第三区 · 深渊领主
+ {t:'boss',n:1},   // 第四区
+ {t:'boss',n:2},   // 终区
+];
+function waveComp(w,wis,wlen,stage){
+  if(wis===undefined){ wis=((w-1)%5)+1; wlen=5; stage=Math.floor((w-1)/5); }
   const out=[]; const add=(t,n,g,d=0,o)=>out.push(Object.assign({t,n,g,d},o||{}));
-  if(w%5===4)add('__miniboss',1,0,2.5);          // the wave before each boss
+  const isBoss = wis>=wlen;
+  const isMini = wlen>=3 && wis===wlen-1;
+  if(isMini)add('__miniboss',1,0,2.5);          // the named heavy, one wave before the boss
   const el=eliteCount(w);
   if(el)add('__elite',el,2.2,3.5);
-  if(w%5===0){
-    const tier=w/5;
-    add(tier%2===0?'boss':'jug',Math.max(1,Math.floor(tier/2)),2.2,0);
+  if(isBoss){
+    const plan=BOSSPLAN[Math.min(stage,BOSSPLAN.length-1)];
+    add(plan.t,plan.n,2.2,0);
     add('grunt',8+w*1.4|0,.3,1.5);
     add('runner',4+w*.5|0,.35,4);
     if(w>=10)add('shield',2+Math.floor(w/8),.8,6);
@@ -290,7 +305,10 @@ function levelGivesCard(l){ return l<=4 || l%2===0; }
 const LEVEL_BONUS={hp:.08, dmg:.06};
 
 const ABILITIES=[
- {id:'strike',n:'轨道轰炸',gl:'☄',key:'Z',cd:38,aim:true,r:3.2,dmg:460,desc:'在准星处降下毁灭打击'},
- {id:'freeze',n:'绝对冰封',gl:'❄',key:'X',cd:50,aim:false,desc:'全场敌人冻结 3 秒'},
- {id:'over',  n:'火力过载',gl:'⚡',key:'C',cd:46,aim:false,desc:'炮塔与武器射速 +150%，持续 9 秒'},
+ /* Cooldowns used to outlast a whole wave cycle, so a tactical skill was really a
+    once-per-wave lottery: mistime it and the effect burned down on an empty field.
+    Shorter cooldowns, longer effects -- and S.overT now pauses out of combat. */
+ {id:'strike',n:'轨道轰炸',gl:'☄',key:'Z',cd:28,aim:true,r:3.4,dmg:460,desc:'在准星处降下毁灭打击'},
+ {id:'freeze',n:'绝对冰封',gl:'❄',key:'X',cd:36,aim:false,desc:'全场敌人冻结 4.5 秒'},
+ {id:'over',  n:'火力过载',gl:'⚡',key:'C',cd:34,aim:false,desc:'炮塔与武器射速 +150%，持续 15 秒'},
 ];

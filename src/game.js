@@ -435,7 +435,9 @@ function hurt(e,amount,o={}){
     text(e.x,e.y,1+e.r/TILE,'闪避','#bfe4ff',12);
     burstFx(e.x,e.y,.5,'#5fd0ff',5,4,.09); return 0; }
   let dmg=amount;
-  if(!o.pierceArmor){ const ar=Math.max(0,e.armor-(e.shred||0)-(o.pen||0)); dmg=Math.max(amount*.15,amount-ar); }
+  let blocked=false;
+  if(!o.pierceArmor){ const ar=Math.max(0,e.armor-(e.shred||0)-(o.pen||0));
+    blocked=ar>0&&amount-ar<amount*.4; dmg=Math.max(amount*.15,amount-ar); }
   if(e.vulnT>0)dmg*=1+e.vuln;
   if(e.markT>0)dmg*=1.3;
   if(e.auraT>0)dmg*=.82;
@@ -443,7 +445,7 @@ function hurt(e,amount,o={}){
   if(e.shield>0){ const a=Math.min(e.shield,dmg); e.shield-=a; dmg-=a; e.shieldT=3.2;
     if(e.shield<=0){shock(e.x,e.y,.5,1.1,'#4ad2c4',.4);burstFx(e.x,e.y,.5,'#8ef0e4',12,6,.11);sfx('hit',.5);} }
   if(dmg<=0){e.flash=.1;return 0;}
-  e.hp-=dmg; e.flash=.12;
+  e.hp-=dmg; e.flash=.12; e.regenT=2.6;
   if(o.src&&o.src.dealt!==undefined)o.src.dealt+=dmg;
   // Poise is the PLAYER's lever. Letting turret fire fill it stun-locked
   // everything in range and stopped units ever reaching what they were attacking.
@@ -459,8 +461,22 @@ function hurt(e,amount,o={}){
     // light units also flinch between breaks
     const kb=clamp(dmg/e.maxHp,0,.35)*TILE*7/poise;
     if(kb>.4&&o.ang!==undefined){ e.kbx+=Math.cos(o.ang)*kb; e.kby+=Math.sin(o.ang)*kb; }
-    if(dmg>e.maxHp*.05/poise){ e.stagger=Math.max(e.stagger,.16/poise); e.atkCd=Math.max(e.atkCd,.22/poise); }
+    // Measured 49% stagger uptime on a brute under sustained fire: it spent half
+    // the fight unable to move, swing or think. A flinch still lands, but it now
+    // has a short refractory period so chip damage cannot hold it in a ragdoll.
+    if(dmg>e.maxHp*.05/poise&&(e.flinchLock||0)<=0){
+      e.stagger=Math.max(e.stagger,.16/poise);
+      e.atkCd=Math.max(e.atkCd,.22/poise);
+      e.flinchLock=.42;
+    }
     if(e.poise>=e.poiseMax) poiseBreak(e,o.ang);
+  }
+  // armour used to just eat your damage in silence; now it says so, once
+  if(blocked&&o.fromPlayer&&!o.noNum){
+    e.armorPing=(e.armorPing||0)+1;
+    if(e.armorPing%6===1)text(e.x,e.y,1.1+e.r/TILE,'护甲','#8fa4d8',12);
+    if(!S.armorHint&&e.armorPing>10){ S.armorHint=true;
+      toast('护甲太厚 · 蓄力重击无视护甲','#8fa4d8'); }
   }
   if(o.fromPlayer&&S.st.leech&&S.P.alive) healPlayer(dmg*S.st.leech);
   if(o.fromPlayer&&S.P.alive&&S.P.ultT<=0)ultCharge(amount);
@@ -501,7 +517,7 @@ function poiseBreak(e,ang,byTurret){
 function kill(e,src,byPlayer){
   if(!e.alive)return;
   e.alive=false;
-  S.kills++; S.combo++; S.comboT=2.6;
+  S.kills++; S.combo++; S.comboT=2.6; S.lastKill=S.time;
   if(byPlayer!==false)ultCharge(e.maxHp*.10);
   const mul=(1+(src&&src.scrapB?src.scrapB:0)+S.st.scrapGain)*S.diff.rw;
   const bonus=e.mini?6:e.affix?2.6:1;
@@ -630,11 +646,13 @@ function enemyTarget(e){
     for(const t of S.towers){ const dd=dist2(e.x,e.y,t.x,t.y); if(dd<bv){bv=dd;best=t;} }
     if(best)return {x:best.x,y:best.y,isTower:true,tower:best,r:TILE*.42};
   }
-  if(e.ai==='coward'&&e.hp<e.maxHp*.75){                      // revenant: retreats to heal
+  // revenant: retreats to heal, but only just out of the fight -- fleeing to the
+  // rim put it beyond every turret's reach, where it healed to full on a loop
+  if(e.ai==='coward'&&!e.purged&&e.hp<e.maxHp*.75){
     const ax=e.x-CX, ay=e.y-CY, l=Math.hypot(ax,ay)||1;
-    return {x:CX+ax/l*17*TILE, y:CY+ay/l*17*TILE, isFlee:true, r:0};
+    return {x:CX+ax/l*9.5*TILE, y:CY+ay/l*9.5*TILE, isFlee:true, r:0};
   }
-  if(e.ai==='commander'){                                     // warden: hides behind the pack
+  if(e.ai==='commander'&&!e.purged){                          // warden: hides behind the pack
     let sx=0,sy=0,n=0;
     nearEnemies(e.x,e.y,8*TILE,o=>{ if(o!==e&&o.alive&&!o.ai){ sx+=o.x; sy+=o.y; n++; } });
     if(n>=2){
@@ -664,6 +682,42 @@ function enemyTarget(e){
   }
   if(dist2(e.x,e.y,P.x,P.y)<(TILE*1.6)**2)return P;
   return core;
+}
+/* --- ranged attack ---
+   This used to live after the stagger early-return, so a unit under sustained
+   fire never reached it at all -- not even to count its cooldown down. It also
+   switched to the Core the moment you stepped outside its envelope, and fired
+   at nothing when the Core was out of range too. Measured: a brute chasing a
+   kiting player got off one shot in 39 seconds, and none at all at 5 tiles.
+   A mounted weapon is not interrupted by a flinch -- only by a real stun -- so
+   this now runs before the stagger return and shoots what it is chasing. */
+function enemyRangedFire(e,dt){
+  if(!e.def.shot)return;
+  const S0=e.def.shot, R=S0.range*TILE;
+  e.shotCd=(e.shotCd===undefined?rnd(S0.rate):e.shotCd)-dt;
+  if(e.stun>0)return;
+  const P2=S.P;
+  let tx2,ty2,toCore=false;
+  const dPlayer=P2&&P2.alive?Math.hypot(P2.x-e.x,P2.y-e.y):1e9;
+  const dCore=Math.hypot(CX-e.x,CY-e.y);
+  if(dPlayer<R*1.3){ tx2=P2.x; ty2=P2.y; }
+  else if(dCore<R){ tx2=CX; ty2=CY; toCore=true; }
+  if(tx2===undefined)return;
+  const dd=Math.hypot(tx2-e.x,ty2-e.y);
+  if(e.shotCd>0||dd>=R*1.3||dd<=TILE*1.1)return;
+  e.shotCd=S0.rate*rnd(1.15,.85);
+  const base=Math.atan2(ty2-e.y,tx2-e.x), n=S0.n||1;
+  for(let i=0;i<n;i++){
+    const a=base+(n>1?(i-(n-1)/2)*.16:0)+rnd(.05,-.05);
+    const b={x:e.x+Math.cos(a)*e.r,y:e.y+Math.sin(a)*e.r,z:.55,
+      dx:Math.cos(a),dy:Math.sin(a),sp:S0.sp*TILE,
+      dmg:S0.dmg*(1+S.wave*.05)*(e.atkMul||1),d:0,maxD:R*1.45,
+      color:e.affixDef?e.affixDef.c:e.def.c,r:S0.style==='siege'?.22:S0.style==='mortar'?.17:.13,
+      style:S0.style,toCore};
+    S.ebullets.push(b); World.addShot(b);
+  }
+  muzzle(e.x+Math.cos(base)*e.r,e.y+Math.sin(base)*e.r,.55,e.def.c,4,base);
+  sfx(S0.style==='siege'?'cannon':'toxin',.5,S0.style==='siege'?.8:1.2);
 }
 function updateEnemy(e,dt){
   const P=S.P;
@@ -704,7 +758,7 @@ function updateEnemy(e,dt){
     hurt(e,m.dps*dt,{noNum:true,pierceArmor:true,src:m.src});
     if(m.dps*.5>=e.burnDps){e.burnDps=m.dps*.5;e.burnSrc=m.src;} e.burnT=Math.max(e.burnT,1); }
 
-  if(e.def.heal){
+  if(e.def.heal&&!e.purged){
     e.healT=(e.healT||0)-dt;
     if(e.healT<=0){ e.healT=.5;
       nearEnemies(e.x,e.y,e.def.healR*TILE,o=>{ if(!o.alive||o===e)return;
@@ -717,7 +771,10 @@ function updateEnemy(e,dt){
   // warden affix projects the same buff
   if(e.auraR) nearEnemies(e.x,e.y,e.auraR*TILE,o=>{
     if(o!==e&&o.alive&&dist2(o.x,o.y,e.x,e.y)<(e.auraR*TILE)**2)o.auraT=.2; });
-  if(e.regenPct&&e.hp<e.maxHp)e.hp=Math.min(e.maxHp,e.hp+e.maxHp*e.regenPct*dt);
+  // regen only kicks in once it has been left alone for a moment, the same way
+  // enemy shields work -- otherwise a fleeing revenant heals through your damage
+  if(e.regenT>0)e.regenT-=dt;
+  else if(e.regenPct&&e.hp<e.maxHp)e.hp=Math.min(e.maxHp,e.hp+e.maxHp*e.regenPct*dt);
 
   if(e.breakFlash>0)e.breakFlash-=dt;
   if(e.poiseHitT>0)e.poiseHitT-=dt;
@@ -727,9 +784,20 @@ function updateEnemy(e,dt){
     e.aggroT=Math.max(e.aggroT,2.2);
   if(e.aggroT>0){
     e.aggroT-=dt;
+    /* Hitting something three times pinned its aggro on you for ~10s, refreshed by
+       every further hit. On a unit 5x slower than you that meant shooting it turned
+       it harmless: it abandoned the Core to chase something it could never reach.
+       Keep out of its reach long enough and it gives up and goes back to work. */
+    if(P&&P.alive){
+      const far=dist2(e.x,e.y,P.x,P.y)>(6.5*TILE)**2;
+      e.chaseT=far?(e.chaseT||0)+dt:0;
+      if(e.chaseT>4.5&&!e.def.boss){ e.aggroT=0; e.chaseT=0; e.grudge=0;
+        text(e.x,e.y,1+e.r/TILE,'失去兴趣','#8d96bd',11); }
+    }
     if(Math.random()<dt*3)part(e.x,e.y,.9+e.r/TILE,'#ff4d5e',{sp:rnd(.9,.2),el:1,life:.5,r:.07,g:-1});
   }
   if(e.stagger>0)e.stagger-=dt;
+  if(e.flinchLock>0)e.flinchLock-=dt;
   if(e.recoilT>0)e.recoilT-=dt;
   if(e.lungeCd>0)e.lungeCd-=dt;
   if(e.blinkCd>0)e.blinkCd-=dt;
@@ -740,10 +808,46 @@ function updateEnemy(e,dt){
     if(Math.abs(e.kbx)<1&&Math.abs(e.kby)<1)e.kbx=e.kby=0;
     if(!e.fly){ resolveObstacles(e,e.r/TILE); resolveTowers(e,e.r/TILE); }
   }
+  enemyRangedFire(e,dt);      // a mounted gun keeps working through a flinch
   if(e.stun>0){ e.curSp=0;
     if(Math.random()<dt*6)part(e.x,e.y,.5,'#9fe8ff',{sp:rnd(1,.2),el:1,life:.4,r:.08,g:-1});
     return; }
-  if(e.stagger>0){ e.curSp=0; return; }         // interrupted: it cannot advance or swing
+  if(e.stagger>0&&!(e.windT>0&&e.windT<=.42)){ e.curSp=0;
+    // once it is past the halfway point of the wind-up, chip damage no longer
+    // swats the swing away -- you had your window to interrupt it
+    if(e.windT>.42){ e.windT=0; e.windCd=rnd(4,2.4);
+      text(e.x,e.y,1.3+e.r/TILE,'打断!','#9fe8ff',14); sfx('pick',.5,1.4); }
+    return; }         // interrupted: it cannot advance or swing
+
+  /* bulwark's telegraphed heavy strike. The affix has always been described as
+     "用蓄力重击破甲", but nothing implemented it -- a breaker just walked to a
+     turret and poked it, which is why a 2.2x-health elite read as harmless. It
+     now plants itself, winds up visibly, and lands a strike that ignores your
+     damage reduction. Stagger it during the wind-up and the swing is wasted. */
+  if(e.ai==='breaker'){
+    if(e.windT>0){
+      e.windT-=dt; e.curSp=0;
+      if(Math.random()<dt*24)part(e.x,e.y,.6,'#8fa4d8',{sp:rnd(1.7,.4),el:1,life:.35,r:.1,g:-1});
+      if(e.windT<=0){
+        const hit=e.def.atk*(1+S.wave*.05)*(e.atkMul||1)*2.4, R=e.r+TILE*1.35;
+        shock(e.x,e.y,.4,2.8,'#c8d4ff',.6); shake(.24); sfx('cannon',.6,.85);
+        burstFx(e.x,e.y,.5,'#8fa4d8',22,7,.17);
+        const Pw=S.P;
+        if(Pw&&Pw.alive&&dist2(e.x,e.y,Pw.x,Pw.y)<R*R)hurtPlayer(hit,e,true);
+        for(const t of S.towers)if(dist2(e.x,e.y,t.x,t.y)<R*R)damageTower(t,hit*1.4,e);
+        e.atkCd=Math.max(e.atkCd,1.1); e.windCd=rnd(6.5,4.2);
+      }
+      return;
+    }
+    if(e.windCd>0)e.windCd-=dt;
+    else{
+      const Pw=S.P;
+      const near=(Pw&&Pw.alive&&dist2(e.x,e.y,Pw.x,Pw.y)<(2.7*TILE)**2)||
+                 S.towers.some(t=>dist2(e.x,e.y,t.x,t.y)<(2.3*TILE)**2);
+      if(near){ e.windT=.75; text(e.x,e.y,1.4+e.r/TILE,'蓄力!','#c8d4ff',14);
+        shock(e.x,e.y,.35,1.3,'#8fa4d8',.45); sfx('pick',.4,.6); }
+    }
+  }
 
   // --- steering ---
   const tgt=enemyTarget(e);
@@ -751,10 +855,10 @@ function updateEnemy(e,dt){
   let dx=tgt.x-e.x, dy=tgt.y-e.y;
   const d=Math.hypot(dx,dy)||1;
   const reach=tr+e.r+ (e.def.atkR||.6)*TILE*0;
-  const wantD=e.def.keepAway?e.def.keepAway*TILE:tr+e.r*.8;
+  const wantD=(e.def.keepAway&&!e.purged)?e.def.keepAway*TILE:tr+e.r*.8;
   let ax,ay;
   if(e.recoilT>0){ ax=-dx/d; ay=-dy/d; }                        // just swung: peel off
-  else if(e.def.keepAway&&d<wantD*.85){ ax=-dx/d; ay=-dy/d; }   // ranged units back off
+  else if(e.def.keepAway&&!e.purged&&d<wantD*.85){ ax=-dx/d; ay=-dy/d; }   // ranged units back off
   else if(d>wantD){ ax=dx/d; ay=dy/d; }
   else { ax=0; ay=0; }
 
@@ -782,6 +886,7 @@ function updateEnemy(e,dt){
   if(e.ai==='bomber'&&d<5*TILE)sp*=1.5;
   // coward sprints when running away
   if(e.ai==='coward'&&tgt.isFlee)sp*=1.5;
+  if(e.purged)sp*=1+Math.min(.55,S.purge*.11);   // burning out: it stops circling and commits
   if(e.corruptT>0)sp*=1.3;          // corruption drives them into a frenzy
   if(e.icy>0)sp*=1.22;              // and ice makes them skid
   e.curSp=sp;
@@ -833,34 +938,6 @@ function updateEnemy(e,dt){
     }
   }
 
-  // --- ranged attack: many units shoot while closing, not just the dedicated shooter ---
-  if(e.def.shot&&!e.stagger&&e.stun<=0){
-    const S0=e.def.shot;
-    e.shotCd=(e.shotCd===undefined?rnd(S0.rate):e.shotCd)-dt;
-    const P2=S.P;
-    let tx2,ty2,toCore=false;
-    // if you are inside its firing envelope it shoots YOU, full stop
-    const inRangeOfPlayer=P2.alive&&dist2(e.x,e.y,P2.x,P2.y)<(S0.range*TILE)**2;
-    if(inRangeOfPlayer){ tx2=P2.x; ty2=P2.y; }
-    else { tx2=CX; ty2=CY; toCore=true; }
-    const dd=Math.hypot(tx2-e.x,ty2-e.y);
-    if(e.shotCd<=0&&dd<S0.range*TILE&&dd>TILE*1.7){
-      e.shotCd=S0.rate*rnd(1.15,.85);
-      const base=Math.atan2(ty2-e.y,tx2-e.x);
-      const n=S0.n||1;
-      for(let i=0;i<n;i++){
-        const a=base+(n>1?(i-(n-1)/2)*.16:0)+rnd(.05,-.05);
-        const b={x:e.x+Math.cos(a)*e.r,y:e.y+Math.sin(a)*e.r,z:.55,
-          dx:Math.cos(a),dy:Math.sin(a),sp:S0.sp*TILE,
-          dmg:S0.dmg*(1+S.wave*.05)*(e.atkMul||1),d:0,maxD:S0.range*TILE*1.25,
-          color:e.affixDef?e.affixDef.c:e.def.c,r:S0.style==='siege'?.22:S0.style==='mortar'?.17:.13,
-          style:S0.style,toCore};
-        S.ebullets.push(b); World.addShot(b);
-      }
-      muzzle(e.x+Math.cos(base)*e.r,e.y+Math.sin(base)*e.r,.55,e.def.c,4,base);
-      sfx(S0.style==='siege'?'cannon':'toxin',.5,S0.style==='siege'?.8:1.2);
-    }
-  }
 
   // --- attack ---
   e.atkCd-=dt;
@@ -870,6 +947,22 @@ function updateEnemy(e,dt){
     damageTower(e.blockedBy,e.def.atk*(1+S.wave*.05)*(e.atkMul||1)*.55,e);
     burstFx(e.blockedBy.x,e.blockedBy.y,.6,'#ff8a8a',6,4,.11);
     return;                                   // keep hammering; no bounce-off on structures
+  }
+  // Elites heading for a turret (bulwark), hiding behind the pack (warden) or
+  // running away to heal (revenant) used to walk straight past you and never
+  // swing -- 2.2x health that could not hurt you reads as a pinata, not a threat.
+  // Anything that gets within arm's reach of you now takes the swing regardless
+  // of what it was walking towards.
+  const Pm=S.P;
+  if(Pm&&Pm.alive&&e.atkCd<=0&&!e.def.ranged&&(tgt.isFlee||tgt.isFollow||tgt.isTower)){
+    const pr=PLAYER.r*TILE+e.r+e.def.atkR*TILE;
+    if(dist2(e.x,e.y,Pm.x,Pm.y)<pr*pr){
+      e.atkCd=e.def.atkRate;
+      hurtPlayer(e.def.atk*(1+S.wave*.05)*(e.atkMul||1),e);
+      e.recoilT=e.def.recoil||0;
+      e.aggroT=Math.max(e.aggroT,2.5);
+      return;
+    }
   }
   const atkReach=e.def.ranged?e.def.atkR*TILE:tr+e.r+e.def.atkR*TILE;
   if(d<=atkReach&&e.atkCd<=0){
@@ -1052,10 +1145,10 @@ function updateCore(dt){
 
 /* ---------- player ---------- */
 function healPlayer(v){ S.P.hp=Math.min(S.st.maxHp,S.P.hp+v); }
-function hurtPlayer(dmg,src){
+function hurtPlayer(dmg,src,pierceArmor){
   const P=S.P;
   if(!P.alive||P.iframe>0||P.dashT>0)return;
-  let d=dmg*S.st.dr;
+  let d=dmg*(pierceArmor?1:S.st.dr);   // a breaker's heavy strike goes through 复合装甲
   if(P.shield>0){ const a=Math.min(P.shield,d); P.shield-=a; d-=a;
     shock(P.x,P.y,.4,1.2,'#8fa4d8',.3);
     if(P.shield<=0)toast('力场耗尽','#8fa4d8');
@@ -1081,21 +1174,28 @@ function killPlayer(){
   toast('剩余 '+S.playerLives+' 条命','#ff4d5e');
   UI.sync();
 }
+/* Between waves there is nothing to fight, so a 25s rage picked up off the last
+   kill of a wave used to spend half its life on an empty arena. Timed buffs, and
+   the pickups still lying on the ground, now hold while the field is clear. */
+function inCombat(){ return S.waveActive&&S.enemies.some(e=>e.alive); }
 function updatePlayer(dt){
   const P=S.P, st=S.st;
+  const bt=inCombat()?dt:0;
   if(!P.alive){
     P.deadT-=dt;
+    P.heat=Math.max(0,P.heat-st.heatCool*dt);   // the barrel cools while you are down
+    if(P.overheat>0)P.overheat=Math.max(0,P.overheat-dt);
     if(P.deadT<=0&&S.playerLives>0){
       P.alive=true; P.x=CX+rnd(TILE,-TILE); P.y=CY+TILE*2.4;
-      P.hp=st.maxHp*.6; P.iframe=2.4;
+      P.hp=st.maxHp*.6; P.iframe=2.4; P.heat=0; P.overheat=0; P.charging=false; P.charge=0;
       shock(P.x,P.y,.3,2.6,'#35e6ff',.7); sfx('level'); log('重新部署完成');
     }
     return;
   }
   if(P.iframe>0)P.iframe-=dt;
-  if(P.coolT>0)P.coolT-=dt;
-  if(P.rageT>0)P.rageT-=dt;
-  if(P.magnetT>0)P.magnetT-=dt;
+  if(P.coolT>0)P.coolT-=bt;
+  if(P.rageT>0)P.rageT-=bt;
+  if(P.magnetT>0)P.magnetT-=bt;
   if(st.regen)healPlayer(st.regen*dt);
   // standing in a hazard costs you
   const hz=hazardAt(P.x,P.y);
@@ -1177,7 +1277,8 @@ function updatePlayer(dt){
   // the right stick aims absolutely and pulls the trigger while held
   if(T.on&&T.aim.act){
     P.lock=null;
-    P.aim=norm(P.aim+norm(T.aim.a-P.aim)*Math.min(1,dt*16));
+    // a thumb sitting still at the stick origin holds your heading instead of snapping
+    if(T.aim.m>.05)P.aim=norm(P.aim+norm(T.aim.a-P.aim)*Math.min(1,dt*16));
     P.fine=false;
   } else if(KM.fine){
     // free aim: hold to steer the barrel by hand (for lining up a specific spot)
@@ -1635,7 +1736,7 @@ function updatePickups(dt){
   // nothing spawns for free: every pickup is dropped by something you killed
   for(let i=S.pickups.length-1;i>=0;i--){
     const p=S.pickups[i];
-    p.t+=dt;
+    p.t+=inCombat()?dt:0;   // supplies wait on the ground for the next wave
     if(p.t>=p.life){ World.removePickup(p); S.pickups.splice(i,1); continue; }
     if(P.alive&&dist2(P.x,P.y,p.x,p.y)<(TILE*.85)**2){ takePickup(p); continue; }
     if(Math.random()<dt*6)part(p.x,p.y,.3,PICKUPS[p.kind].c,{sp:rnd(.8,.2),el:1,life:.5,r:.07,g:-1});
@@ -1688,10 +1789,22 @@ function cardPool(){
   const taken=S.cardCount||{};
   return CARDS.filter(c=>(taken[c.id]||0)<c.max);
 }
+/* Only 6 of the 21 cards raise your own damage, so a blind 3-of-21 draw offered
+   nothing offensive 34% of the time -- several levels in a row could go by with
+   your gun no stronger while enemy health kept scaling. One slot is now always
+   drawn from the offensive set (when any is still available). */
+const OFFENSE_CARDS=['dmg','rate','crit','multi','pierce','explo'];
 function offerCards(){
   const pool=cardPool().slice();
   const out=[];
-  for(let i=0;i<3&&pool.length;i++) out.push(pool.splice((Math.random()*pool.length)|0,1)[0]);
+  const off=pool.filter(c=>OFFENSE_CARDS.includes(c.id));
+  if(off.length){
+    const pickCard=off[(Math.random()*off.length)|0];
+    out.push(pickCard); pool.splice(pool.indexOf(pickCard),1);
+  }
+  while(out.length<3&&pool.length) out.push(pool.splice((Math.random()*pool.length)|0,1)[0]);
+  // do not always show the guaranteed pick first, or the choice reads as fake
+  for(let i=out.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; const t=out[i]; out[i]=out[j]; out[j]=t; }
   S.cards=out; S.paused=true; sfx('level');
   UI.showCards(out);
 }
@@ -1835,10 +1948,42 @@ function updateSalvage(dt){
 }
 
 /* ---------- waves ---------- */
+/* ---------- attrition: the abyss loses patience ----------
+   A wave only ends when the field is clear, so anything that can out-sustain your
+   damage while refusing to commit hangs the run forever. The revenant affix did
+   exactly that: it fled past every turret's reach, healed to full, walked back in,
+   and repeated -- the Core never dropped either, so there was not even a loss to
+   end on. Once the spawns are done and nothing has died for a while, the survivors
+   start burning out: healing stops, armour rots away, and they are forced forward.
+   Either you kill them or they reach the Core. Both are endings; a stall is not. */
+const PURGE_IDLE=11, PURGE_ARMOR=2.4;
+function updatePurge(dt){
+  if(riftsPending()){ S.purge=0; return; }
+  const live=S.enemies.filter(e=>e.alive);
+  if(!live.length){ S.purge=0; return; }
+  if(S.time-(S.lastKill||0)<PURGE_IDLE){
+    if(S.purge>0){ S.purge=Math.max(0,S.purge-dt*2); if(S.purge<=0)for(const e of live)e.purged=false; }
+    return;
+  }
+  if(S.purge<=0){
+    S.purge=1e-6;
+    log('⚠ 残敌枯竭 · 护甲崩解，它们正扑向核心');
+    toast('深渊失去耐心 · 残敌枯竭','#ffc247'); sfx('wave',.6,.7);
+  }
+  S.purge+=dt;
+  for(const e of live){
+    e.purged=true;
+    e.regenPct=0; e.regenT=9;
+    if(e.maxShield>0){ e.maxShield=Math.max(0,e.maxShield-e.maxShield*.5*dt); e.shield=Math.min(e.shield,e.maxShield); }
+    if(e.armor>0)e.armor=Math.max(0,e.armor-PURGE_ARMOR*dt);
+    if(Math.random()<dt*5)part(e.x,e.y,.7+e.r/TILE,'#ffc247',{sp:rnd(1.3,.3),el:1,life:.5,r:.09,g:-1});
+  }
+}
 function startWave(){
   if(S.waveActive)return;
-  S.wave++; S.rest=0; S.qt=0; S.waveActive=true;
-  const comp=waveComp(S.wave);
+  S.wave++; S.rest=0; S.qt=0; S.waveActive=true; S.lastKill=S.time; S.purge=0;
+  const wlen=STAGES[S.stage].waves, wis=Math.min(wlen,S.stageWaves+1);
+  const comp=waveComp(S.wave,wis,wlen,S.stage);
   const flat=[];
   for(const g of comp) for(let i=0;i<g.n;i++) flat.push({t:g.d+i*g.g,type:g.t});
   flat.sort((a,b)=>a.t-b.t);
@@ -1850,6 +1995,18 @@ function startWave(){
   banner('WAVE '+String(S.wave).padStart(2,'0'));
   sfx('wave'); log('第 '+S.wave+' 波来袭 · '+flat.length+' 个单位 · '+S.rifts.length+' 道裂隙');
   UI.sync();
+}
+/* true when the player cannot afford a single build, upgrade or repair -- there is
+   no decision left to make, so the countdown should not keep them waiting */
+function nothingToBuy(){
+  for(const k of TKEYS) if(towerUnlocked(k)&&S.scrap>=towerCost(k))return false;
+  for(const t of S.towers){
+    const u=upgradeCost(t); if(u!=null&&S.scrap>=u)return false;
+    if(t.hp<t.maxHp&&S.scrap>=repairCost(t))return false;
+    if(t.lvl>=4&&t.elite==null&&t.def.elites&&
+       t.def.elites.some((_,i)=>S.scrap>=eliteCost(t,i)))return false;
+  }
+  return true;
 }
 function waveDone(){
   S.waveActive=false;
@@ -1976,11 +2133,11 @@ function fireAbility(a,x,y){
   } else if(a.id==='freeze'){
     S.flash=.22;
     for(const e of S.enemies){ if(!e.alive)continue;
-      applyStun(e,3); applySlow(e,.5,5.5);
+      applyStun(e,4.5); applySlow(e,.5,7);
       shock(e.x,e.y,.3,.9,'#9fe8ff',.5); burstFx(e.x,e.y,.5,'#cbf1ff',8,4,.1); }
     log('绝对冰封 · 全场冻结');
   } else if(a.id==='over'){
-    S.overT=9;
+    S.overT=15;
     for(const t of S.towers){ shock(t.x,t.y,.35,1.5,'#ffc247',.6);
       for(let i=0;i<12;i++)part(t.x,t.y,.5,'#ffc247',{sp:rnd(5,1)}); }
     log('火力过载 · 射速 +150%');
@@ -1991,16 +2148,19 @@ function fireAbility(a,x,y){
 /* ---------- main loop ---------- */
 function sim(dt){
   S.time+=dt;
-  if(S.overT>0)S.overT-=dt;
+  if(S.overT>0&&inCombat())S.overT-=dt;   // 火力过载 holds until there is something to shoot
   if(S.comboT>0){S.comboT-=dt;if(S.comboT<=0)S.combo=0;}
   for(const id in S.abil) if(S.abil[id].cd>0)S.abil[id].cd=Math.max(0,S.abil[id].cd-dt);
 
   if(S.waveActive){
     S.qt+=dt;
     updateRifts(dt);
+    updatePurge(dt);
     if(!riftsPending()&&!S.enemies.some(e=>e.alive))waveDone();
   } else if(S.rest>0){ S.rest-=dt; if(S.rest<=0)startWave();
     for(const t of S.towers) if(t.hp<t.maxHp) t.hp=Math.min(t.maxHp,t.hp+t.maxHp*.22*dt);
+    // standing around with an empty wallet is not a decision, it is a loading screen
+    if(S.rest>4&&!S.pendingCards&&nothingToBuy())S.rest=4;
   }
   for(const o of S.obstacles) if(o.flash>0)o.flash-=dt;
   for(const t of S.towers){ if(t.flash>0)t.flash-=dt; if(t.hitT>0)t.hitT-=dt;
@@ -2057,10 +2217,15 @@ function sim(dt){
   else { S.cam.x=lerp(S.cam.x,CX,.05); S.cam.y=lerp(S.cam.y,CY,.05); }
 }
 let lastT=0;
+/* while the phone is held upright the rotate prompt covers the screen, so the
+   simulation has to hold too -- nobody should die during the turn of a wrist */
+function blockedByOrientation(){
+  return S.touch.on&&matchMedia('(max-width:900px) and (orientation:portrait)').matches;
+}
 function loop(now){
   requestAnimationFrame(loop);
   const dt=Math.min(.05,(now-lastT)/1000); lastT=now;
-  if(S.running&&!S.paused&&!S.over){
+  if(S.running&&!S.paused&&!S.over&&!blockedByOrientation()){
     let scale=1;
     if(S.hitStop>0){ S.hitStop=Math.max(0,S.hitStop-dt); scale=.18; }
     let left=dt*S.speed*scale, guard=0;
