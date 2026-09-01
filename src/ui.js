@@ -11,7 +11,7 @@ const el={scrap:$('vScrap'),power:$('vPower'),mul:$('vMul'),lives:$('vLives'),
   waveTag:$('waveTag'),bNext:$('bNext'),nextBonus:$('nextBonus'),log:$('log'),perks:$('perks'),
   banner:$('banner'),bannerT:$('bannerT'),abilities:$('abilities'),mini:$('mini'),
   bSpeed:$('bSpeed'),bPause:$('bPause'),bSound:$('bSound'),bLayout:$('bLayout'),bestTag:$('bestTag'),
-  ovlHelp:$('ovlHelp'),
+  ovlHelp:$('ovlHelp'),ovlTutDone:$('ovlTutDone'),
   layoutPicks:$('layoutPicks'),tipBox:$('tipBox'),
   ovlStart:$('ovlStart'),ovlEnd:$('ovlEnd'),ovlCards:$('ovlCards'),cardRow:$('cardRow'),
   ovlTele:$('ovlTele'),teleTitle:$('teleTitle'),teleSub:$('teleSub'),stageLine:$('stageLine'),
@@ -635,9 +635,13 @@ const UI={
   onTutorialEnd(skipped){
     for(const t of S.towers)World.removeTower(t); S.towers=[];
     S.P=newPlayer(); S.st=freshStats();
-    el.ovlStart.classList.remove('hide');
     buildStart(); UI.sync();
-    toast(skipped?'训练已跳过 · 随时可在开始界面重来':'训练完成 · 进入战场吧','#6ee7a8');
+    if(skipped){
+      el.ovlStart.classList.remove('hide');
+      toast('训练已跳过 · 随时可在开始界面重来','#8d96bd');
+      return;
+    }
+    showTutorialDone();
   },
  sync(){
   el.scrap.textContent=S.scrap;
@@ -901,6 +905,8 @@ function bindInput(){
     if(ev.repeat)return;
     if(k==='escape'){
       if(!el.ovlHelp.classList.contains('hide')){ closeHelp(); return; }
+      if(!el.ovlTutDone.classList.contains('hide')){ el.ovlTutDone.classList.add('hide');
+        el.ovlStart.classList.remove('hide'); return; }
       S.build=null;World.setGhost(null);selectTower(null);UI.sync();return;}
     if(!S.running||S.cards)return;
     if(k==='e'){ buildHere(); return; }
@@ -1035,6 +1041,7 @@ function renderHelp(){
 }
 let helpWasPaused=false;
 function openHelp(){
+  S.helpSeen=true;   // recorded here, not polled: opening it pauses the sim
   renderHelp();
   helpWasPaused=S.paused;
   if(S.running)S.paused=true;
@@ -1137,6 +1144,37 @@ function buildStart(){
 }
 /* the training run lives in its own sandbox: no waves, no losing, and every step
    gated on the player actually performing the action */
+/* Finishing the training used to just drop you back on the menu with a toast, so
+   there was no moment that said you were done. Give it an ending. */
+function showTutorialDone(){
+  const L=layoutHint();
+  const k=s=>'<b>'+s+'</b>';
+  const learned=[
+    ['移动与冲刺', L.move+' 走位 · Shift 冲刺带无敌帧'],
+    ['自动跟枪', '枪口自己锁敌 · '+L.turn+' 换目标 · '+L.fire+' 开火'],
+    ['蓄力破甲', L.charge+' 按住蓄力，重击无视护甲'],
+    ['炮塔', '1–8 选型号 · E 建造 · R 升级 · [ ] 选中 · V 改造 · T 出售'],
+    ['技能与大招', 'Z X C 三个战术技能 · Q 歼灭光束'],
+    ['裂隙与残骸', '裂隙只有你打得动，关掉可换炮塔位 · 残骸要站定拆解'],
+  ];
+  $('tutDoneBox').innerHTML=
+    '<div class="title" style="font-size:34px">训练完成</div>'+
+    '<div class="sub">TRAINING COMPLETE · 14 / 14</div>'+
+    '<div class="rule"></div>'+
+    '<div class="tdgrid">'+learned.map(([a,b])=>
+      '<div class="tdrow"><span>'+a+'</span><em>'+b+'</em></div>').join('')+'</div>'+
+    '<div class="hnote" style="margin-top:14px">'+
+      '<div>随时按 '+k('H')+' 调出完整操作指南，'+k(',')+' 可切换移动键位。</div>'+
+      '<div>训练可以在开始界面重来，不会影响记录。</div>'+
+    '</div>'+
+    '<button class="play" id="bTutGo" style="margin-top:16px">进入战场</button>'+
+    '<button class="btn" id="bTutHelp" style="width:100%;margin-top:8px">再看一遍操作指南</button>';
+  el.ovlTutDone.classList.remove('hide');
+  sfx('win');
+  $('bTutGo').onclick=()=>{ ac(); el.ovlTutDone.classList.add('hide');
+    el.ovlStart.classList.remove('hide'); };
+  $('bTutHelp').onclick=()=>{ ac(); openHelp(); };
+}
 function startTutorial(){
   el.ovlStart.classList.add('hide'); el.ovlEnd.classList.add('hide');
   el.ovlCards.classList.add('hide'); el.ovlTele.classList.add('hide');

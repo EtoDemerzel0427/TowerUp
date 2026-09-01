@@ -12,7 +12,7 @@
 
 const Tutor = (function(){
   let active=false, i=0, holdT=0, doneT=0, started=false;
-  const c={moved:0, dashes:0, kills:0, cycles:0, heavy:0, sel:0, helped:false};
+  const c={moved:0, dashes:0, kills:0, cycles:0, heavy:0, sel:0};
   let prevDash=false, prevCycle=0, prevShots=0, prevKills=0, prevRifts=0, prevSalv=0;
 
   const K=()=>layoutHint();
@@ -153,8 +153,8 @@ const Tutor = (function(){
             kb('P')+' 暂停、'+kb('M')+' 音效、'+kb(',')+' 切换布局——都在指南里。'+
             '按 '+kb('H')+' 打开看看，随时可以再按 '+kb('H')+' 调出来。',
       hint:'按 H 打开指南',
-      setup(){ wipe(); },
-      done(){ return c.helped; } },
+      setup(){ wipe(); S.helpSeen=false; },
+      done(){ return !!S.helpSeen; } },
   ];
 
   function card(){
@@ -177,7 +177,7 @@ const Tutor = (function(){
 
   function enter(n){
     i=n; doneT=0; holdT=.35;
-    c.moved=0; c.dashes=0; c.kills=0; c.cycles=0; c.heavy=0; c.helped=false;
+    c.moved=0; c.dashes=0; c.kills=0; c.cycles=0; c.heavy=0;
     prevKills=S.kills; prevRifts=S.riftsClosed||0;
     const P=S.P; P.hp=S.st.maxHp; P.heat=0; P.overheat=0;
     S.scrap=Math.max(S.scrap,600);
@@ -227,8 +227,6 @@ const Tutor = (function(){
       }
       if(S.kills>prevKills){ c.kills+=S.kills-prevKills; prevKills=S.kills; }
       for(const s of S.shots) if(s.heavy&&!s._tut){ s._tut=true; c.heavy++; }
-      const hv=document.getElementById('ovlHelp');
-      if(hv&&!hv.classList.contains('hide'))c.helped=true;
 
       if(holdT>0){ holdT-=dt; return; }
       if(doneT>0){
