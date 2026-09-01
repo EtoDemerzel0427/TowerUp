@@ -315,6 +315,27 @@ body.shortscreen .minimap{display:none}
 }
 
 .chip .mul.grow{color:var(--cyan);border-color:var(--cyan)}
+/* ---------- controls guide ---------- */
+.helpbox{width:min(880px,100%)}
+.helphead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:4px}
+.helphead h2{font-size:22px;letter-spacing:.16em}
+.helphead em{font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;color:var(--dim2)}
+.helpgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px 22px;margin-top:16px}
+.hsec h3{font-size:11px;letter-spacing:.2em;color:var(--cyan);margin-bottom:8px;
+  padding-bottom:5px;border-bottom:1px solid var(--line)}
+.hrow{display:grid;grid-template-columns:auto 1fr;gap:9px;align-items:baseline;
+  padding:4px 0;font-size:12.5px;line-height:1.5}
+.hkey{display:inline-flex;gap:3px;flex-shrink:0}
+.hkey b{font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--ink);
+  background:var(--panel2);border:1px solid var(--line2);border-bottom-width:2px;
+  border-radius:3px;padding:2px 6px;min-width:18px;text-align:center;white-space:nowrap}
+.hrow span{color:var(--dim)}
+.hrow span u{text-decoration:none;color:var(--ink)}
+.hnote{margin-top:16px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);
+  background:var(--panel2);font-size:12px;line-height:1.75;color:var(--dim)}
+.hnote b{color:var(--gold)}
+.hnote div+div{margin-top:6px}
+@media (max-width:760px){ .helpgrid{grid-template-columns:1fr;gap:14px} }
 .refit{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
 .refit em{display:block;font-size:10.5px;letter-spacing:.08em;color:var(--dim2);margin-bottom:6px}
 .refitrow{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}

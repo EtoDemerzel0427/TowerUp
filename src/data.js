@@ -307,7 +307,15 @@ function waveComp(w,wis,wlen,stage){
   if(w>=16&&w%3===1)add('jug',Math.min(4,1+Math.floor((w-15)/4)),2.0,7.0);
   return out;
 }
-const RIFT={hp:250,hpPerWave:.34,r:1.15,scrap:150,xp:110};
+/* A rift used to go inert the moment its scripted queue drained -- it sat there
+   as scenery for the rest of the wave, so closing one late bought you nothing and
+   the "cuts off reinforcements" promise was mostly false. An open rift now keeps
+   producing. The budget is finite so a wave still terminates, but it is big enough
+   that leaving one open for a whole wave genuinely costs you. */
+const RIFT={hp:400,hpPerWave:.40,r:1.15,scrap:150,xp:110,
+  overflowPool:['grunt','runner','swarm'],
+  overflowEvery:w=>clamp(5.4-w*.13,2.4,5.4),
+  overflowBudget:w=>3+Math.floor(w*.7)};
 const SALVAGE={amount:80,time:2.9,r:1.5};
 const LINK_R=3.3;
 /* Measured over region 1-3: enemy health climbed 151% while the player's own gun

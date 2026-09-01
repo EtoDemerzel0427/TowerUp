@@ -1974,7 +1974,8 @@ function placeRifts(n){
       y=clamp(CY+Math.sin(a)*d*.82,TILE*2.4,H-TILE*2.4);
     }while(++tries<40&&S.obstacles.some(o=>dist2(x,y,o.x,o.y)<((o.r+RIFT.r+.6)*TILE)**2));
     const hp=RIFT.hp*(1+RIFT.hpPerWave*(S.wave-1))*S.diff.hp;
-    const r={x,y,hp,maxHp:hp,queue:[],t:0,alive:true,flash:0,obj:null,idx:i};
+    const r={x,y,hp,maxHp:hp,queue:[],t:0,alive:true,flash:0,obj:null,idx:i,
+      over:0,overLeft:RIFT.overflowBudget(S.wave),overflowing:false};
     S.rifts.push(r); World.addRift(r);
   }
   shake(.35); sfx('boss',.55);
@@ -2035,8 +2036,29 @@ function updateRifts(dt){
       spawnUnit(q.type,r.x+Math.cos(a)*d,r.y+Math.sin(a)*d);
       burstFx(r.x,r.y,.9,'#ff8ac0',5,4,.1);
     }
-    if(Math.random()<dt*16){ const a=rnd(TAU),d=rnd(RIFT.r*TILE);
-      part(r.x+Math.cos(a)*d,r.y+Math.sin(a)*d,.3,'#ff3d8a',{sp:rnd(1.4,.3),el:1.2,life:.8,r:.09,g:-1.6}); }
+    // scripted queue drained: an open rift keeps feeding the field until you close it
+    if(!r.queue.length&&r.overLeft>0&&!S.purge){
+      if(!r.overflowing){ r.overflowing=true;
+        log('⚠ 裂隙仍在涌出增援 · 关闭它才能止住');
+        shock(r.x,r.y,.3,2.6,'#ff3d8a',.6); }
+      r.over-=dt;
+      if(r.over<=0){
+        r.over=RIFT.overflowEvery(S.wave)*rnd(1.15,.85);
+        r.overLeft--;
+        const a=rnd(TAU), dd=rnd(RIFT.r*TILE*.75);
+        spawnUnit(pick(RIFT.overflowPool),r.x+Math.cos(a)*dd,r.y+Math.sin(a)*dd);
+        burstFx(r.x,r.y,.9,'#ff3d8a',9,5,.13);
+        shock(r.x,r.y,.3,1.6,'#ff8ac0',.4); sfx('wave',.28,1.5);
+      }
+    }
+    // an exhausted rift folds on its own so a wave can always end
+    if(!r.queue.length&&r.overLeft<=0&&r.overflowing){
+      r.overflowing=false; log('裂隙枯竭 · 已停止涌出');
+    }
+    const busy=r.queue.length||r.overLeft>0;
+    if(Math.random()<dt*(busy?26:10)){ const a=rnd(TAU),d=rnd(RIFT.r*TILE);
+      part(r.x+Math.cos(a)*d,r.y+Math.sin(a)*d,.3,busy?'#ff3d8a':'#7a4a6a',
+        {sp:rnd(1.4,.3),el:1.2,life:.8,r:.09,g:-1.6}); }
   }
 }
 function riftsPending(){ return S.rifts.some(r=>r.alive&&r.queue.length); }
@@ -2135,6 +2157,7 @@ function updatePurge(dt){
     toast('深渊失去耐心 · 残敌枯竭','#ffc247'); sfx('wave',.6,.7);
   }
   S.purge+=dt;
+  for(const r of S.rifts) if(r.alive&&r.overLeft>0){ r.overLeft=0; r.overflowing=false; }
   for(const e of live){
     e.purged=true;
     e.regenPct=0; e.regenT=9;

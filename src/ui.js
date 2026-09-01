@@ -11,6 +11,7 @@ const el={scrap:$('vScrap'),power:$('vPower'),mul:$('vMul'),lives:$('vLives'),
   waveTag:$('waveTag'),bNext:$('bNext'),nextBonus:$('nextBonus'),log:$('log'),perks:$('perks'),
   banner:$('banner'),bannerT:$('bannerT'),abilities:$('abilities'),mini:$('mini'),
   bSpeed:$('bSpeed'),bPause:$('bPause'),bSound:$('bSound'),bLayout:$('bLayout'),bestTag:$('bestTag'),
+  ovlHelp:$('ovlHelp'),
   layoutPicks:$('layoutPicks'),tipBox:$('tipBox'),
   ovlStart:$('ovlStart'),ovlEnd:$('ovlEnd'),ovlCards:$('ovlCards'),cardRow:$('cardRow'),
   ovlTele:$('ovlTele'),teleTitle:$('teleTitle'),teleSub:$('teleSub'),stageLine:$('stageLine'),
@@ -852,7 +853,9 @@ function bindInput(){
     if(['w','a','s','d','q','arrowup','arrowdown','arrowleft','arrowright',' ','shift','tab'].includes(k))ev.preventDefault();
     S.keys[k]=true;
     if(ev.repeat)return;
-    if(k==='escape'){S.build=null;World.setGhost(null);selectTower(null);UI.sync();return;}
+    if(k==='escape'){
+      if(!el.ovlHelp.classList.contains('hide')){ closeHelp(); return; }
+      S.build=null;World.setGhost(null);selectTower(null);UI.sync();return;}
     if(!S.running||S.cards)return;
     if(k==='e'){ buildHere(); return; }
     if(k==='r'){ upgradeHere(); return; }
@@ -865,6 +868,7 @@ function bindInput(){
     if(k==='p'){ togglePause(); return; }
     if(k==='tab'){ cycleSpeed(); return; }
     if(k==='m'){ toggleSound(); return; }
+    if(k==='h'||k==='?'||k==='/'){ toggleHelp(); return; }
     if(k==='f'){ toggleAuto(); return; }
     if(k===','){ toggleLayout(); return; }
     const n=parseInt(k,10);
@@ -881,6 +885,8 @@ function bindInput(){
   el.bPause.onclick=togglePause;
   el.bSound.onclick=toggleSound;
   el.bLayout.onclick=toggleLayout;
+  const h1=$('bHelp'); if(h1)h1.onclick=openHelp;
+  const h2=$('bHelp2'); if(h2)h2.onclick=toggleHelp;
   const ab=$('bAuto'); if(ab){ ab.onclick=toggleAuto;
     ab.classList.toggle('on',S.autoFire); ab.textContent=S.autoFire?'⊙':'⊘'; }
 }
@@ -904,6 +910,94 @@ function cycleTowerSel(dir){
   toast(t.def.name+' LV'+t.lvl+(up!=null?' · R 升级需 '+up:' · 已满级')+
         (S.build&&S.build!==t.key?' · V 改造为'+TOWERS[S.build].name+' 需 '+swapCost(t,S.build):''),t.def.c);
 }
+
+/* ---------- controls guide ----------
+   The game grew a lot of verbs: two movement schemes, a lock-on gun with a heavy
+   shot and a heat bar, capped turret emplacements with upgrades / elite branches /
+   refits, three tactical skills, and rifts that have to be closed by hand. One
+   screen that lists every one of them, keyed to the layout actually in use. */
+function helpRows(){
+  const L=layoutHint(), touch=S.touch.on;
+  const k=(...keys)=>'<span class="hkey">'+keys.map(x=>'<b>'+x+'</b>').join('')+'</span>';
+  const row=(keys,text)=>'<div class="hrow">'+k(...keys)+'<span>'+text+'</span></div>';
+  const move=L.move.split(' ').filter(Boolean);
+  const sec=(title,rows)=>'<div class="hsec"><h3>'+title+'</h3>'+rows.join('')+'</div>';
+
+  const moveSec=sec('移动与生存',[
+    row(move,'移动'),
+    row(['Shift'],'冲刺 · <u>带无敌帧</u>，可穿过敌人并打断它们的攻击'),
+    row(['—'],'血量归零会损失一条命，5 秒后在核心旁重新部署'),
+  ]);
+  const fightSec=sec('战斗',[
+    row([L.fire],'开火（按住连射）· 枪口<u>自动锁定</u>最近的敌人'),
+    row(['F'],'自动开火开关 · 开启后锁到敌人就自己射，不必按住'+(touch?'（手机默认开）':'（键盘默认关）')),
+    row(L.turn.split('/').map(x=>x.trim()),'切换锁定目标'),
+    row([L.charge],'蓄力重击 · 按住蓄力、松手发射，<u>无视护甲</u>，破重甲专用'),
+    row([L.fine],'按住＝自由瞄准 · <u>会暂时关闭自动跟枪</u>，打特定位置时才用'),
+    row(['Q'],'歼灭光束 · 造成伤害积攒，满了释放'),
+  ]);
+  const towerSec=sec('炮塔',[
+    row(['1','–','8'],'选择要建造的炮塔型号'),
+    row(['E'],'在脚下建造 · 若脚下已有塔，则<u>改造</u>成当前选中的型号'),
+    row(['R'],'升级脚下或选中的炮塔 · 结构受损时先维修'),
+    row(['T'],'出售（返还 70%）'),
+    row(['[',']'],'切换已建炮塔 · 可<u>隔空</u>升级、出售、改造'),
+    row(['V'],'把选中的炮塔改造为 1–8 所选型号 · 保留位置与塔位'),
+    row(['Esc'],'取消建造 / 取消选中'),
+  ]);
+  const skillSec=sec('技能与节奏',[
+    row(['Z'],ABILITIES[0].n+' · '+ABILITIES[0].desc),
+    row(['X'],ABILITIES[1].n+' · '+ABILITIES[1].desc),
+    row(['C'],ABILITIES[2].n+' · '+ABILITIES[2].desc),
+    row(['G'],'提前出击 · 跳过剩余休整时间，按剩余秒数换碎片'),
+    row(['Tab'],'加速 ×1 / ×2 / ×3'),
+    row(['P'],'暂停'),
+  ]);
+  const sysSec=sec('系统',[
+    row(['H'],'打开 / 关闭本指南'),
+    row(['M'],'音效开关'),
+    row([','],'切换操作布局（WASD 移动 ↔ 方向键移动）'),
+  ]);
+  const touchSec=sec('手机（横屏）',[
+    row(['左半屏'],'移动摇杆 · 拇指按下的位置即摇杆原点'),
+    row(['右半屏'],'瞄准摇杆 · <u>可选</u>，用来手动修正枪口；不碰它就是全自动'),
+    row(['冲刺'],'带无敌帧的位移'),
+    row(['蓄力'],'按住蓄力、松手发射的破甲重击'),
+    row(['大招'],'歼灭光束'),
+    row(['菜单'],'拉出建造面板（会暂停）· <u>建造</u> / <u>升级</u> 作用于脚下'),
+  ]);
+
+  return '<div class="helpgrid">'+moveSec+fightSec+towerSec+skillSec+sysSec+touchSec+'</div>'+
+    '<div class="hnote">'+
+    '<div><b>护甲</b>：重甲敌人会把普通子弹削到 15%，屏幕上跳「护甲」两字就是这个。用<u>蓄力重击</u>，它完全无视护甲。</div>'+
+    '<div><b>架势崩溃</b>：只有<u>你的</u>命中会积累敌人的架势条，打满会让它踉跄倒地。炮塔的火力只能让它们原地一顿，不能崩架势。</div>'+
+    '<div><b>精英</b>：带词缀的、名字带前缀的、以及首领和 BOSS，受到<u>炮塔伤害只有 45%</u>。杂兵交给炮塔，有名字的东西得你自己打。</div>'+
+    '<div><b>裂隙</b>：每波会开若干道裂隙，<u>只有你的子弹和轨道轰炸能伤害它</u>。不关掉它就会一直涌出增援。关闭可累积「据点扩建」，2 / 4 / 6 道各永久 +1 炮塔位。</div>'+
+    '<div><b>炮塔上限</b>：每个区域能同时拥有的炮塔数是固定的（第一区 4 座，逐区递增）。变强靠<u>升级和改造</u>，不是靠数量。</div>'+
+    '<div><b>残骸</b>：场上的金色残骸需要<u>站着不动</u> 2.9 秒拆解，换一笔碎片。移动会中断。</div>'+
+    '</div>';
+}
+function renderHelp(){
+  $('helpBox').innerHTML=
+    '<div class="helphead"><h2>操作指南</h2><em>H 关闭</em></div>'+
+    '<div class="sub" style="text-align:left;letter-spacing:.1em">当前布局：'+
+      (S.layout==='left'?'WASD 移动':'方向键移动')+' · 按 <b>,</b> 可切换</div>'+
+    helpRows()+
+    '<button class="play" id="bHelpClose" style="margin-top:18px">明白了</button>';
+  $('bHelpClose').onclick=closeHelp;
+}
+let helpWasPaused=false;
+function openHelp(){
+  renderHelp();
+  helpWasPaused=S.paused;
+  if(S.running)S.paused=true;
+  el.ovlHelp.classList.remove('hide');
+}
+function closeHelp(){
+  el.ovlHelp.classList.add('hide');
+  if(S.running&&!helpWasPaused)S.paused=false;
+}
+function toggleHelp(){ el.ovlHelp.classList.contains('hide')?openHelp():closeHelp(); }
 function togglePause(){ if(S.cards)return;
   S.paused=!S.paused;el.bPause.textContent=S.paused?'▶':'⏸';el.bPause.classList.toggle('on',S.paused);}
 function cycleSpeed(){S.speed=S.speed===1?2:S.speed===2?3:1;el.bSpeed.textContent='×'+S.speed;
@@ -1077,6 +1171,8 @@ function boot(){
   el.bPlay.onclick=startGame;
   el.bNextStage.onclick=()=>{ac();nextStage();};
   UI.sync();
+  try{ if(!localStorage.getItem('abyss2_seen_help')){
+    localStorage.setItem('abyss2_seen_help','1'); openHelp(); } }catch(e){}
   requestAnimationFrame(loop);
 }
 boot();
