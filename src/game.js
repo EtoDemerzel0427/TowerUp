@@ -41,7 +41,7 @@ function newPlayer(){
     iframe:1.5,moving:false,cool:0,droneAng:0,r:PLAYER.r,
     heat:0,overheat:0,charge:0,charging:false,chgCd:0,fireHold:0,flashT:0,kick:0,turnHold:0,aiming:false,
     onIce:false,hazT:0,fine:false,dashLatch:false,coolT:0,rageT:0,shield:0,
-    rageArmed:false,coolArmed:false,magnetArmed:false,
+    rageArmed:false,coolArmed:false,magnetArmed:false,channelT:0,
     ult:0,ultT:0,ultLatch:false,magnetT:0,
     lock:null,lockLatch:false,cycleLatch:0};
 }
@@ -599,11 +599,18 @@ function poiseBreak(e,ang,byTurret){
   shake(e.boss?.35:.16);
   sfx('snipe',.55,1.5);
 }
+/* `byPlayer` used to be dead code: the only caller passed o.fromPlayer, which is
+   true for your hits and undefined for everything else, and the test was
+   `!== false` -- so it was always true and every kill in the game, including a
+   turret's, charged your ultimate at the full rate. Make the contract explicit:
+   true = you killed it, false = nobody gets credit (attrition burnout),
+   undefined = your defences killed it and earn a smaller share. */
 function kill(e,src,byPlayer){
   if(!e.alive)return;
   e.alive=false;
   S.kills++; S.combo++; S.comboT=2.6; S.lastKill=S.time;
-  if(byPlayer!==false)ultCharge(e.maxHp*.10);
+  if(byPlayer===true)ultCharge(e.maxHp*.10);
+  else if(byPlayer!==false)ultCharge(e.maxHp*.03);   // your turrets still feed it, at a third
   const mul=(1+(src&&src.scrapB?src.scrapB:0)+S.st.scrapGain)*S.diff.rw;
   const bonus=e.mini?6:e.affix?2.6:1;
   const sc=e.mini?e.mini.scrap:e.def.scrap*bonus;
@@ -1345,6 +1352,7 @@ function hurtPlayer(dmg,src,pierceArmor){
   const P=S.P;
   if(!P.alive||P.iframe>0||P.dashT>0)return;
   let d=dmg*(pierceArmor?1:S.st.dr*playerDrMul());   // 复合装甲 + 个人装甲
+  if(P.channelT>0)d*=.5;                             // the salvage rig shields you
   if(P.shield>0){ const a=Math.min(P.shield,d); P.shield-=a; d-=a;
     shock(P.x,P.y,.4,1.2,'#8fa4d8',.3);
     if(P.shield<=0)toast('力场耗尽','#8fa4d8');
@@ -1389,6 +1397,7 @@ function updatePlayer(dt){
     return;
   }
   if(P.iframe>0)P.iframe-=dt;
+  if(P.channelT>0)P.channelT-=dt;
   /* A pickup's clock starts on your next shot and then simply runs. This replaces
      the earlier out-of-combat freeze for these three: "starts when you next pull
      the trigger" is one rule the player can actually predict, instead of a timer
@@ -2232,18 +2241,39 @@ function updateSalvage(dt){
     const near=P.alive&&dist2(P.x,P.y,s.x,s.y)<(SALVAGE.r*TILE)**2;
     if(near&&!P.moving&&P.dashT<=0){
       s.p+=dt/SALVAGE.time;
+      /* Channelling now means something: the rig throws up a field that halves
+         what you take and drags anything stepping into it, and the payout scales
+         with how hot it was while you stood there. */
+      P.channelT=.12;
+      let contest=0;
+      nearEnemies(s.x,s.y,SALVAGE.r*TILE*2.2,e=>{
+        if(!e.alive)return;
+        if(dist2(e.x,e.y,s.x,s.y)>(SALVAGE.r*TILE*2.2)**2)return;
+        contest++; applySlow(e,.4,.3);
+      });
+      s.hot=Math.max(s.hot||0,contest);
+      if(Math.random()<dt*7)shock(s.x,s.y,.2,SALVAGE.r*1.5,'#ffc247',.34,.06);
       if(Math.random()<dt*26){const a=rnd(TAU),d=rnd(SALVAGE.r*TILE);
         part(s.x+Math.cos(a)*d,s.y+Math.sin(a)*d,.2,'#ffc247',{sp:1.2,el:1,life:.4,r:.08,g:-2});}
       if(s.p>=1){
-        const amt=Math.round(s.amount*(1+S.st.scrapGain));
+        const hot=s.hot||0;
+        const bonus=1+Math.min(1.2,hot*.18);          // paid for the risk you took
+        const amt=Math.round(s.amount*(1+S.st.scrapGain)*bonus);
         S.scrap+=amt; S.earned+=amt;
+        // and the part you cannot buy: a slug of ult charge and some field medicine
+        const ult=PLAYER.ultNeed*(1+S.wave*.04)*.22;
+        ultCharge(ult);
+        for(let k=0;k<2;k++)
+          addDrop('hp',s.x+rnd(TILE,-TILE),s.y+rnd(TILE,-TILE),Math.round(S.st.maxHp*.09));
         text(s.x,s.y,1.4,'+'+amt,'#ffc247',18);
+        text(s.x,s.y,2.2,'大招 +22%','#ffe89a',14);
         burstFx(s.x,s.y,.5,'#ffc247',28,7,.16);
         shock(s.x,s.y,.3,2,'#ffc247',.6); sfx('up');
-        log('残骸拆解完成 · +'+amt+' 碎片');
+        log('残骸拆解完成 · +'+amt+' 碎片'+(hot?'（火线拆解 ×'+bonus.toFixed(1)+'）':'')+
+            ' · 大招 +22% · 掉出应急医疗');
         World.removeSalvage(s); S.salvage.splice(i,1); UI.sync(); continue;
       }
-    } else if(s.p>0){ s.p=Math.max(0,s.p-dt*.5); }
+    } else if(s.p>0){ s.p=Math.max(0,s.p-dt*.5); if(s.p<=0)s.hot=0; }
   }
 }
 
