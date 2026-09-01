@@ -602,7 +602,7 @@ function hurt(e,amount,o={}){
    not a rotation. The requirement now also tracks how hard you hit, so investing
    in damage speeds up everything else without turning the ultimate into spam. */
 function ultNeedNow(){
-  return PLAYER.ultNeed*(1+S.wave*.10)*Math.sqrt(Math.max(1,S.st.dmg/PLAYER.dmg));
+  return PLAYER.ultNeed*(1+S.wave*.12)*Math.sqrt(Math.max(1,S.st.dmg/PLAYER.dmg));
 }
 function ultCharge(v){
   const P=S.P; if(!P||!P.alive||P.ultT>0)return;

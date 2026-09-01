@@ -25,7 +25,10 @@ const PLAYER={
   turnSpeed:1.75, turnSpeedMax:5.6, turnRamp:.6, turnFine:.38,
   lockTrack:11, assistCone:.26, assistPull:1.9,
   // ultimate: charged by damage dealt, unleashes a steerable annihilation beam
-  ultNeed:2400, ultTime:3.6, ultDps:520, ultWidth:1.15, ultRange:16,
+  /* Measured with the balance bot: 2400 filled every 50 s of fighting -- one beam a
+     wave from wave 3 on, 88% of it from ordinary rifle hits. It is meant to be an
+     event, about one every two waves. */
+  ultNeed:4000, ultTime:3.6, ultDps:520, ultWidth:1.15, ultRange:16,
   /* Ceiling on beam damage against NAMED units (champions, bosses), as a fraction
      of max health per second. Trash takes the full beam.
      At 520+ dps the beam did 2200 at wave 3 against a 666-health champion and
