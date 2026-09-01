@@ -173,38 +173,50 @@ const DIFFS=[
 ];
 
 /* ---------- buildable turrets (auto-defend the Core) ---------- */
+/* Ranges are deliberately wider than they look like they should be. Measured over
+   three 9-wave runs, a turret used to have a target only 14% of combat time -- four
+   seconds out of five it was a statue, which reads as "the turrets do nothing" even
+   though they were already dealing 74% of all damage. The cause was pure geometry:
+   the Core stand-off ring pushes an emplacement 4.2 tiles out, rifts pour enemies in
+   from 10-13 tiles, the player's rifle reaches 10, and a turret reached 4-5.4 -- the
+   shortest range on the field, shorter than the Core's own gun. A flat +1.4 (flame
+   +0.8; it is a cone specialist and a 7-tile flamethrower reads wrong) doubles the
+   duty cycle to 27%. It costs almost nothing in balance: total damage is capped by
+   the wave's HP pool, so the turrets kill the same things slightly further out
+   rather than killing more. Sniper (9-11) is the long gun by design and beacon is a
+   support aura with no damage to trade, so neither moves. */
 const TOWERS={
  arrow:{name:'速射弩塔',role:'ARMOUR SHRED',power:1,unlock:0,shape:[1.0,1.35,1.0],cost:45,c:'#7ee787',air:true,hotkey:1,
   desc:'廉价高频的单体射手，对<b>空中单位</b>同样有效。每次命中<b>削甲</b>，'+
        '把重甲目标一层层剥开给别的炮塔打。',
-  dmg:[11,17,25,35],rate:[2.0,2.3,2.6,2.9],range:[4.2,4.5,4.8,5.2],up:[55,100,175],
+  dmg:[11,17,25,35],rate:[2.0,2.3,2.6,2.9],range:[5.6,5.9,6.2,6.6],up:[55,100,175],
   shredHit:[.6,.9,1.3,1.8],
   elites:[{n:'疾风连弩',c:300,d:'射速 ×2.6，命中<b>无视 12 点护甲</b>并额外削甲 2 点',rate:2.6,pen:12,shredHit:2},
           {n:'穿甲弩炮',c:320,d:'箭矢<b>贯穿</b>直线上的 3 个敌人，伤害 ×1.5',dmg:1.5,pierce:3}]},
  cannon:{name:'重型火炮',role:'SPLASH · GROUND',power:2,unlock:0,shape:[1.45,0.95,1.45],cost:130,c:'#ffa14a',air:false,hotkey:2,
   desc:'抛射炮弹造成<b>范围爆炸</b>，把敌人<b>轰飞并打断</b>它们的动作，无法打空中。'+
        '推开正在拆塔或围核心的一群人最好用。',
-  dmg:[34,52,76,106],rate:[.8,.86,.92,1.0],range:[4.4,4.7,5.0,5.4],splash:[1.3,1.45,1.6,1.8],up:[100,175,300],
+  dmg:[34,52,76,106],rate:[.8,.86,.92,1.0],range:[5.8,6.1,6.4,6.8],splash:[1.3,1.45,1.6,1.8],up:[100,175,300],
   knock:[9,11,13,16],stun:[.10,.12,.14,.18],
   elites:[{n:'集束轰炸',c:460,d:'每次发射 3 发散射炮弹',cluster:3,dmg:.62},
           {n:'攻城臼炮',c:500,d:'伤害 ×2.1，爆炸范围 ×1.5，并<b>击晕</b> 0.35 秒',dmg:2.1,splash:1.5,rate:.72,stun:.35}]},
  frost:{name:'霜寒之柱',role:'CONTROL',power:1,unlock:1,shape:[0.95,1.55,0.95],cost:95,c:'#5fd0ff',air:true,hotkey:3,
   desc:'冰弹落地形成<b>寒冰领域</b>，持续减速，并有几率<b>直接冻结</b>。'+
        '被冻住的东西打不动你的核心，也走不到你面前。',
-  dmg:[13,20,29,40],rate:[1.3,1.4,1.5,1.6],range:[4.0,4.3,4.6,5.0],splash:[1.1,1.2,1.3,1.45],
+  dmg:[13,20,29,40],rate:[1.3,1.4,1.5,1.6],range:[5.4,5.7,6.0,6.4],splash:[1.1,1.2,1.3,1.45],
   slow:[.45,.53,.62,.72],freeze:[.12,.16,.20,.26],up:[75,130,220],
   elites:[{n:'绝对零度',c:390,d:'25% 概率<b>冻结</b>目标 1.1 秒',freeze:.25,slow:1.2},
           {n:'极寒领域',c:370,d:'转为持续光环：范围内敌人<b>永久减速</b>',aura:true,range:1.35}]},
  tesla:{name:'电弧线圈',role:'CHAIN',power:2,unlock:2,shape:[0.9,1.8,0.9],cost:215,c:'#8b6cff',air:true,hotkey:4,
   desc:'闪电在敌人之间<b>连锁跳跃</b>，每一跳都会<b>短暂麻痹</b>。密集虫群的克星。',
-  dmg:[25,36,52,72],rate:[1.2,1.3,1.4,1.5],range:[4.0,4.3,4.6,4.9],chain:[2,3,3,4],
+  dmg:[25,36,52,72],rate:[1.2,1.3,1.4,1.5],range:[5.4,5.7,6.0,6.3],chain:[2,3,3,4],
   stun:[.10,.12,.14,.18],up:[130,215,355],
   elites:[{n:'超载电网',c:540,d:'连锁次数提升至 8，衰减大幅降低',chain:8,falloff:.88},
           {n:'磁暴线圈',c:580,d:'伤害 ×1.45，每次命中<b>击晕</b> 0.25 秒',dmg:1.45,stun:.25}]},
  flame:{name:'炽炎喷口',role:'DOT · GROUND',power:2,unlock:1,shape:[1.35,0.8,1.35],cost:115,c:'#ff6b3d',air:false,hotkey:5,
   desc:'持续火焰扇面并叠加<b>灼烧</b>。伤害与灼烧都<b>无视护甲</b>，'+
        '扇面随等级变宽，是贴脸守核心的专家。',
-  dmg:[34,52,76,108],rate:[6,6,6,6],range:[4.2,4.7,5.2,5.8],burn:[14,21,30,42],
+  dmg:[34,52,76,108],rate:[6,6,6,6],range:[5.0,5.5,6.0,6.6],burn:[14,21,30,42],
   cone:[.85,1.0,1.15,1.35],up:[95,160,270],
   elites:[{n:'熔岩喷射',c:430,d:'在地面留下<b>熔岩池</b>，持续灼烧经过的地面单位',magma:true},
           {n:'烈焰风暴',c:450,d:'转为 360° 环形灼烧，射程 ×1.2',ring:true,range:1.2,dmg:.8}]},
@@ -216,7 +228,7 @@ const TOWERS={
           {n:'致命标记',c:660,d:'30% 概率暴击 ×3，并<b>标记</b>目标使其受伤 +30%',crit:.3,mark:true}]},
  toxin:{name:'腐毒喷雾',role:'DOT · ARMOR',power:2,unlock:2,shape:[1.25,1.05,1.25],cost:180,c:'#a6e22e',air:true,hotkey:7,
   desc:'释放<b>自主漂移的毒云</b>，在场上游荡，经过的敌人中毒、削甲并减速。毒伤无视护甲。',
-  dmg:[9,13,19,26],rate:[1.1,1.2,1.3,1.4],range:[4.2,4.5,4.8,5.2],splash:[1.3,1.45,1.6,1.75],
+  dmg:[9,13,19,26],rate:[1.1,1.2,1.3,1.4],range:[5.6,5.9,6.2,6.6],splash:[1.3,1.45,1.6,1.75],
   poison:[12,18,26,36],shred:[3,4,5,6],up:[110,185,315],
   elites:[{n:'瘟疫源体',c:480,d:'中毒者死亡时<b>扩散</b>毒素给周围敌人',plague:true},
           {n:'腐蚀酸液',c:440,d:'削甲翻倍，并使目标<b>受到的所有伤害 +35%</b>',shred:2,vuln:.35}]},
