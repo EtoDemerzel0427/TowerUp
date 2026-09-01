@@ -30,6 +30,29 @@ function mat(color,o={}){
   if(!o.unique)MATC[key]=m;
   return m;
 }
+/* Fresnel rim light. Units used to be lit only by the sun and a dim hemisphere, so
+   their unlit sides went black and a 20-pixel enemy read as a smudge on the deck.
+   A view-dependent glow along the silhouette, in the unit's own colour, is what
+   makes a small model pop against the ground at this camera distance. */
+function rimLight(m,color,strength=1.0,power=2.6){
+  if(!m||!m.isMeshStandardMaterial)return m;
+  const col=new THREE.Color(color);
+  m.userData.rim={col,strength,power};
+  m.onBeforeCompile=sh=>{
+    sh.uniforms.uRimC={value:col}; sh.uniforms.uRimI={value:strength}; sh.uniforms.uRimP={value:power};
+    sh.fragmentShader=sh.fragmentShader
+      .replace('#include <common>','#include <common>\nuniform vec3 uRimC; uniform float uRimI; uniform float uRimP;')
+      .replace('#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\n'+
+        '{ vec3 nV=normalize(vViewPosition); float fr=pow(1.0-clamp(dot(normal,nV),0.0,1.0),uRimP);\n'+
+        '  totalEmissiveRadiance += uRimC*fr*uRimI; }');
+  };
+  m.customProgramCacheKey=()=>'rim';
+  return m;
+}
+function rimTree(g,color,strength,power){
+  g.traverse(o=>{ if(o.isMesh&&o.material&&o.material.isMeshStandardMaterial)rimLight(o.material,color,strength,power); });
+}
 function glowMat(color,op=.9,side){
   return new THREE.MeshBasicMaterial({color:new THREE.Color(color),transparent:true,opacity:op,
     blending:THREE.AdditiveBlending,depthWrite:false,side:side||THREE.FrontSide});
@@ -225,7 +248,8 @@ function makeTower(key,lvl,elite){
     top.userData.turret.add(fl); g.userData.flash=fl;
   }
   if(elite!=null)eliteCrown(g,d.c);
-  g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+  g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;
+    if(o.material.isMeshStandardMaterial){o.material=o.material.clone();rimLight(o.material,d.c,.55,3.0);}}});
   return g;
 }
 
@@ -445,9 +469,12 @@ function makeEnemy(type){
   const d=ENEMIES[type];
   const g=(ENEMY_MODEL[type]||ENEMY_MODEL.grunt)(d.c);
   if(!d.fly)contactShadow(g,(d.r/28),0);
-  g.scale.setScalar(1.32);
+  // a touch bigger than before: the camera sits closer now, and a unit still had
+  // to be found by its glow dot rather than its shape
+  g.scale.setScalar(1.48);
   g.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=false;
-    if(o.material.isMeshStandardMaterial){o.material=o.material.clone();} } });
+    if(o.material.isMeshStandardMaterial){o.material=o.material.clone();
+      rimLight(o.material,d.c,d.boss?1.8:1.4,2.3);} } });
   return g;
 }
 
@@ -522,7 +549,8 @@ function makePlayer(){
   g.userData.ultBeam=ub; g.userData.ultParts=[core2,mid,outer]; g.userData.ultBall=muzzleBall;
   const halo=new THREE.Mesh(geo('plh',()=>new THREE.SphereGeometry(.46,12,10)),glowMat(GL,.05));
   halo.position.y=.42; g.add(halo);
-  g.traverse(o=>{if(o.isMesh){o.castShadow=true;}});
+  g.traverse(o=>{if(o.isMesh){o.castShadow=true;
+    if(o.material.isMeshStandardMaterial){o.material=o.material.clone();rimLight(o.material,GL,1.3,2.2);}}});
   return g;
 }
 
@@ -582,7 +610,8 @@ function makeCore(){
     const p=m3(geo('co8',()=>new THREE.CylinderGeometry(.07,.11,1.15,5)),mat(C,{em:C,ei:.9,metal:.6}),
       Math.cos(a)*(CORE.r+.28),.6,Math.sin(a)*(CORE.r+.28)); pylons.add(p); }
   g.add(pylons);
-  g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+  g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;
+    if(o.material.isMeshStandardMaterial){o.material=o.material.clone();rimLight(o.material,C,.7,2.8);}}});
   return g;
 }
 

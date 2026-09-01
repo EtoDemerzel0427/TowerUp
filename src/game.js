@@ -653,7 +653,7 @@ function kill(e,src,byPlayer){
     nearEnemies(e.x,e.y,3.2*TILE,o=>{ if(o.alive&&o!==e&&dist2(o.x,o.y,e.x,e.y)<(3.2*TILE)**2)
       hurt(o,e.maxHp*.16,{pierceArmor:true}); });
     const P=S.P;
-    if(P.alive&&dist2(P.x,P.y,e.x,e.y)<(3.2*TILE)**2)hurtPlayer(28*(1+S.wave*.05),null);
+    if(P.alive&&dist2(P.x,P.y,e.x,e.y)<(3.2*TILE)**2)hurtPlayer(28*atkScale(S.wave),null);
   }
   if(e.mini){ log('★ 击杀 '+e.mini.n);
     spawnPickup(null,e.x,e.y); spawnPickup(null,e.x+TILE*1.2,e.y);
@@ -668,7 +668,8 @@ function kill(e,src,byPlayer){
   const n=e.boss?70:e.def.hp>200?26:14;
   burstFx(e.x,e.y,.45,e.def.c,n,e.boss?11:6,e.boss?.28:.15);
   shock(e.x,e.y,.3,e.boss?4.5:1+e.r/22,e.def.c,e.boss?.9:.42);
-  if(e.boss){shake(.9);hitStop(.22);sfx('boom',1);log('★ 击杀 '+e.def.name);}
+  if(e.boss){shake(.9);hitStop(.22);sfx('boom',1);log('★ 击杀 '+e.def.name);World.scorch(e.x,e.y,3,50);}
+  else if(e.def.hp>150)World.scorch(e.x,e.y,.9,14);
   else sfx('hit',.6);
   if(e.def.split) for(const s of e.def.split)
     spawnEnemyAt(s,e.x+rnd(TILE*.7,-TILE*.7),e.y+rnd(TILE*.7,-TILE*.7),e.hpMul*.55);
@@ -859,12 +860,12 @@ function enemyRangedFire(e,dt){
   const dd=Math.hypot(tx2-e.x,ty2-e.y);
   if(e.shotCd>0||dd>=R*1.3||dd<=TILE*1.1)return;
   e.shotCd=S0.rate*rnd(1.15,.85);
-  const base=Math.atan2(ty2-e.y,tx2-e.x), n=S0.n||1;
+  const base=Math.atan2(ty2-e.y,tx2-e.x), n=e.shotN||S0.n||1;
   for(let i=0;i<n;i++){
     const a=base+(n>1?(i-(n-1)/2)*.16:0)+rnd(.05,-.05);
     const b={x:e.x+Math.cos(a)*e.r,y:e.y+Math.sin(a)*e.r,z:.55,
       dx:Math.cos(a),dy:Math.sin(a),sp:S0.sp*TILE,
-      dmg:S0.dmg*(1+S.wave*.05)*(e.atkMul||1),d:0,maxD:R*1.45,
+      dmg:S0.dmg*atkScale(S.wave)*(e.atkMul||1),d:0,maxD:R*1.45,
       color:e.affixDef?e.affixDef.c:e.def.c,r:S0.style==='siege'?.22:S0.style==='mortar'?.17:.13,
       style:S0.style,toCore};
     S.ebullets.push(b); World.addShot(b);
@@ -974,6 +975,8 @@ function updateEnemy(e,dt){
     if(!e.fly){ resolveObstacles(e,e.r/TILE); resolveTowers(e,e.r/TILE); }
   }
   enemyRangedFire(e,dt);      // a mounted gun keeps working through a flinch
+  if(e.surgeT>0)e.surgeT-=dt;
+  if(e.def.phase2&&bossPhase(e,dt))return;
   if(e.stun>0){ e.curSp=0;
     if(Math.random()<dt*7)part(e.x,e.y,.5+rnd(.3),'#bfeaff',{sp:rnd(1.2,.3),el:1,life:.32,r:rnd(.08,.04),g:-1});
     return; }
@@ -1001,7 +1004,7 @@ function updateEnemy(e,dt){
       if(Math.random()<dt*30)part(e.x,e.y,.5,'#8ef0e4',{sp:rnd(1.4,.3),life:.28,r:.09,g:0});
       const Pc=S.P, RR=e.r+PLAYER.r*TILE+TILE*.35;
       if(Pc&&Pc.alive&&dist2(e.x,e.y,Pc.x,Pc.y)<RR*RR){
-        hurtPlayer(e.def.atk*(1+S.wave*.05)*(e.atkMul||1)*CH.dmg,e);
+        hurtPlayer(e.def.atk*atkScale(S.wave)*(e.atkMul||1)*CH.dmg,e);
         shock(e.x,e.y,.4,2.2,'#8ef0e4',.55); shake(.2); sfx('boom',.6,1.2);
         e.chgT=0; e.chgCd=rnd(CH.cd[1],CH.cd[0]); e.recoilT=.35;
       }
@@ -1041,7 +1044,7 @@ function updateEnemy(e,dt){
       e.windT-=dt; e.curSp=0;
       if(Math.random()<dt*24)part(e.x,e.y,.6,'#8fa4d8',{sp:rnd(1.7,.4),el:1,life:.35,r:.1,g:-1});
       if(e.windT<=0){
-        const hit=e.def.atk*(1+S.wave*.05)*(e.atkMul||1)*2.4, R=e.r+TILE*1.35;
+        const hit=e.def.atk*atkScale(S.wave)*(e.atkMul||1)*2.4, R=e.r+TILE*1.35;
         shock(e.x,e.y,.4,2.8,'#c8d4ff',.6); shake(.24); sfx('cannon',.6,.85);
         burstFx(e.x,e.y,.5,'#8fa4d8',22,7,.17);
         const Pw=S.P;
@@ -1099,6 +1102,7 @@ function updateEnemy(e,dt){
   // coward sprints when running away
   if(e.ai==='coward'&&tgt.isFlee)sp*=1.5;
   if(e.purged)sp*=1+Math.min(.55,S.purge*.11);   // burning out: it stops circling and commits
+  if(e.surgeT>0)sp*=1.35;                          // a surge arrives as a wall, not a queue
   if(e.corruptT>0)sp*=1.3;          // corruption drives them into a frenzy
   if(e.icy>0)sp*=1.22;              // and ice makes them skid
   e.curSp=sp;
@@ -1143,7 +1147,7 @@ function updateEnemy(e,dt){
     const nearCore=dist2(e.x,e.y,CX,CY)<((CORE.r+e.r/TILE+.4)*TILE)**2;
     const nearYou=P2.alive&&dist2(e.x,e.y,P2.x,P2.y)<((PLAYER.r+e.r/TILE+.3)*TILE)**2;
     if(nearCore||nearYou){
-      if(nearCore)damageCore(e.def.atk*(1+S.wave*.05)*2.2,e);
+      if(nearCore)damageCore(e.def.atk*atkScale(S.wave)*2.2,e);
       text(e.x,e.y,1.6,'引爆!','#ffc247',16);
       hurt(e,e.hp+1,{pierceArmor:true});      // triggers the volatile death blast
       return;
@@ -1156,7 +1160,7 @@ function updateEnemy(e,dt){
   // something solid is in the way: break it down before moving on
   if(e.blockedBy&&e.atkCd<=0&&!e.def.ranged){
     e.atkCd=e.def.atkRate;
-    damageTower(e.blockedBy,e.def.atk*(1+S.wave*.05)*(e.atkMul||1)*.55,e);
+    damageTower(e.blockedBy,e.def.atk*atkScale(S.wave)*(e.atkMul||1)*.55,e);
     burstFx(e.blockedBy.x,e.blockedBy.y,.6,'#ff8a8a',6,4,.11);
     return;                                   // keep hammering; no bounce-off on structures
   }
@@ -1170,7 +1174,7 @@ function updateEnemy(e,dt){
     const pr=PLAYER.r*TILE+e.r+e.def.atkR*TILE;
     if(dist2(e.x,e.y,Pm.x,Pm.y)<pr*pr){
       e.atkCd=e.def.atkRate;
-      hurtPlayer(e.def.atk*(1+S.wave*.05)*(e.atkMul||1),e);
+      hurtPlayer(e.def.atk*atkScale(S.wave)*(e.atkMul||1),e);
       e.recoilT=e.def.recoil||0;
       e.aggroT=Math.max(e.aggroT,2.5);
       return;
@@ -1179,7 +1183,7 @@ function updateEnemy(e,dt){
   const atkReach=e.def.ranged?e.def.atkR*TILE:tr+e.r+e.def.atkR*TILE;
   if(d<=atkReach&&e.atkCd<=0){
     e.atkCd=e.def.atkRate;
-    const dmg=e.def.atk*(1+S.wave*.05)*(e.atkMul||1);
+    const dmg=e.def.atk*atkScale(S.wave)*(e.atkMul||1);
     if(e.def.ranged){
       const a=Math.atan2(dy,dx);
       S.ebullets.push({x:e.x+Math.cos(a)*e.r,y:e.y+Math.sin(a)*e.r,z:.5,
@@ -1228,6 +1232,7 @@ function destroyProp(o,ang){
   dropLoot(o.x,o.y,scrap,Math.round(6+S.wave*.6),false);
   burstFx(o.x,o.y,.6,'#9fb0dc',26,7,.18);
   shock(o.x,o.y,.3,o.r*1.8,'#cfd8f0',.5);
+  World.scorch(o.x,o.y,P0.boom?o.r*3:o.r*1.3,P0.boom?40:20);
   shake(.12); sfx('boom',.55);
   const hitAll=(fn)=>nearEnemies(o.x,o.y,R,e=>{ if(!e.alive)return;
     if(dist2(e.x,e.y,o.x,o.y)>R*R)return; fn(e); });
@@ -1248,7 +1253,7 @@ function destroyProp(o,ang){
         const a=Math.atan2(e.y-o.y,e.x-o.x), kb=TILE*11/Math.max(1,(e.def.poise||1)*.6);
         e.kbx+=Math.cos(a)*kb; e.kby+=Math.sin(a)*kb; });
       const P3=S.P;
-      if(P3.alive&&dist2(P3.x,P3.y,o.x,o.y)<BR*BR)hurtPlayer(34*(1+S.wave*.05),null);
+      if(P3.alive&&dist2(P3.x,P3.y,o.x,o.y)<BR*BR)hurtPlayer(34*atkScale(S.wave),null);
       if(hits)toast('弹药箱殉爆 · 波及 '+hits+' 个敌人','#ffb45a');
       shake(.75); hitStop(.09); S.flash=Math.max(S.flash,.22); sfx('boom',1.3); break; }
     case 'steam':
@@ -1942,7 +1947,7 @@ function explode(x,y,radius,dmg,src,o={}){
   }
   shock(x,y,.3,radius*1.05,o.slow?'#9fe8ff':o.poison?'#a6e22e':'#ffb45a',.42);
   burstFx(x,y,.4,o.slow?'#9fe8ff':o.poison?'#a6e22e':'#ffb45a',o.slow||o.poison?12:20,o.slow||o.poison?5:8,.14);
-  if(!o.slow&&!o.poison){shake(.04);sfx('boom',.5);}
+  if(!o.slow&&!o.poison){shake(.04);sfx('boom',.5);World.scorch(x,y,radius*.9);}
   nearEnemies(x,y,R+30,e=>{
     if(!e.alive)return;
     if(e.fly&&src&&!src.def.air)return;
@@ -2143,7 +2148,8 @@ function placeRifts(n){
     }while(++tries<40&&S.obstacles.some(o=>dist2(x,y,o.x,o.y)<((o.r+RIFT.r+.6)*TILE)**2));
     const hp=RIFT.hp*(1+RIFT.hpPerWave*(S.wave-1))*S.diff.hp;
     const r={x,y,hp,maxHp:hp,queue:[],t:0,alive:true,flash:0,obj:null,idx:i,
-      over:0,overLeft:RIFT.overflowBudget(S.wave),overflowing:false};
+      over:0,overLeft:RIFT.overflowBudget(S.wave),overflowing:false,
+      surgeT:RIFT.surgeFirst(S.wave)*rnd(1.15,.85)+i*2.5,surgeWarn:0,surges:0};
     S.rifts.push(r); World.addRift(r);
   }
   shake(.35); sfx('boss',.55);
@@ -2155,7 +2161,7 @@ function damageRift(r,dmg){
   if(r.hp<=0){
     r.alive=false;
     const left=r.queue.length; r.queue.length=0;
-    const scrap=Math.round(RIFT.scrap*(1+S.wave*.16)*S.diff.rw*(1+S.st.scrapGain));
+    const scrap=Math.round(RIFT.scrap*(1+S.wave*RIFT.scrapPerWave)*S.diff.rw*(1+S.st.scrapGain));
     dropLoot(r.x,r.y,scrap,Math.round(RIFT.xp*(1+S.wave*.1)),true);
     burstFx(r.x,r.y,1.0,'#ff3d8a',60,10,.26);
     shock(r.x,r.y,.3,5,'#ff3d8a',.9); shock(r.x,r.y,.3,3,'#ffd7e2',.6);
@@ -2174,7 +2180,7 @@ function creditRift(r){
   const need=riftsForNextSlot();
   if(need==null){
     // already at the ceiling: pay it out in scrap instead of nothing
-    const bonus=Math.round(90*(1+S.wave*.12)*S.diff.rw);
+    const bonus=Math.round(60*(1+S.wave*.06)*S.diff.rw);
     S.scrap+=bonus; S.earned+=bonus;
     text(r.x,r.y,2.6,'+'+bonus,'#ffc247',17);
     log('据点已达扩建上限 · 改为额外 +'+bonus+' 碎片');
@@ -2193,6 +2199,71 @@ function creditRift(r){
   log('★ 据点扩建 · 炮塔上限提升至 '+towerSlots()+' 座');
   UI.sync();
 }
+/* the pack: mostly trash from the overflow pool, one heavy once the wave allows it,
+   all of them briefly quick so they arrive as a wall instead of a queue */
+function riftSurge(r){
+  const w=S.wave, n=RIFT.surgeN(w);
+  let heavy=w>=RIFT.surgeHeavyFrom?1+Math.floor(Math.max(0,w-12)/8):0;
+  const out=[];
+  for(let i=0;i<n;i++){
+    const a=i/n*TAU+rnd(.4), d=RIFT.r*TILE*(.4+rnd(.9));
+    const type=heavy-->0?pick(RIFT.surgeHeavyPool):pick(RIFT.overflowPool);
+    const e=spawnUnit(type,r.x+Math.cos(a)*d,r.y+Math.sin(a)*d);
+    if(e){ e.surgeT=4.5; out.push(e); }
+  }
+  r.surges++;
+  // the pack drains the rift's own reserve: a surge is the overflow arriving early
+  r.overLeft=Math.max(0,r.overLeft-Math.ceil(n*.5));
+  burstFx(r.x,r.y,1,'#ff3d8a',40,8,.16); shock(r.x,r.y,.3,3,'#ffd7e2',.5); shock(r.x,r.y,.3,5.5,'#ff3d8a',.8,.2);
+  shake(.45); sfx('wave',.8,.8);
+  text(r.x,r.y,2.6,'涌潮!','#ff8ac0',20);
+  log('⚠ 裂隙涌潮 · '+out.length+' 个单位同时涌出');
+}
+/* boss second phase: the fight changes shape at half health */
+function bossPhase(e,dt){
+  const P2=e.def.phase2; if(!P2)return;
+  if(!e.phase2&&e.hp<=e.maxHp*P2.hp){
+    e.phase2=true; e.slamCd=P2.slamEvery*.5;
+    e.sp*=P2.sp; if(e.def.shot)e.shotN=P2.volley;
+    e.stun=0; e.stagger=0;
+    banner('第二阶段'); toast(e.name+' 进入狂暴 · 注意震地预警','#ff3d8a');
+    shock(e.x,e.y,.4,5,'#ff3d8a',.9,.25); burstFx(e.x,e.y,.6,'#ff3d8a',40,9,.2); shake(.7); sfx('boss',.9,1.2);
+    log('⚑ '+e.name+' 第二阶段');
+  }
+  if(!e.phase2)return;
+  if(e.slamWarn>0){
+    e.slamWarn-=dt; e.curSp=0;
+    if(Math.random()<dt*30){ const a=rnd(TAU),d=rnd(P2.slamR*TILE);
+      part(e.x+Math.cos(a)*d,e.y+Math.sin(a)*d,.2,'#ff3d8a',{sp:rnd(1.5,.3),el:1.2,life:.45,r:.1,g:-1.5}); }
+    if(e.slamWarn<=0){
+      const R=P2.slamR*TILE, P=S.P;
+      shock(e.x,e.y,.3,P2.slamR*1.1,'#ffffff',.5,.3); shock(e.x,e.y,.3,P2.slamR*1.4,'#ff3d8a',.8,.2);
+      burstFx(e.x,e.y,.4,'#ff8ac0',50,10,.2); shake(.9); hitStop(.08); sfx('boom',1.2,.7);
+      World.scorch(e.x,e.y,P2.slamR*.9,30);
+      if(P&&P.alive&&dist2(P.x,P.y,e.x,e.y)<R*R){
+        hurtPlayer(P2.slamDmg*atkScale(S.wave)*(e.atkMul||1),e);
+        const a=Math.atan2(P.y-e.y,P.x-e.x); P.vx+=Math.cos(a)*TILE*P2.slamKnock; P.vy+=Math.sin(a)*TILE*P2.slamKnock;
+      }
+      for(const t of S.towers) if(dist2(t.x,t.y,e.x,e.y)<R*R)damageTower(t,P2.slamDmg*2.2*atkScale(S.wave),e);
+      if(dist2(CX,CY,e.x,e.y)<(R+CORE.r*TILE)**2)damageCore(P2.slamDmg*1.5*atkScale(S.wave),e);
+      e.slamCd=P2.slamEvery*rnd(1.15,.85);
+    }
+    return true;   // planted: no movement this frame
+  }
+  e.slamCd=(e.slamCd===undefined?P2.slamEvery:e.slamCd)-dt;
+  const P=S.P;
+  const near=(P&&P.alive&&dist2(P.x,P.y,e.x,e.y)<(P2.slamR*TILE*1.15)**2)||
+             S.towers.some(t=>dist2(t.x,t.y,e.x,e.y)<(P2.slamR*TILE)**2)||
+             dist2(CX,CY,e.x,e.y)<((P2.slamR+CORE.r)*TILE)**2;
+  if(e.slamCd<=0&&near){
+    e.slamWarn=P2.slamWarn;
+    text(e.x,e.y,1.6+e.r/TILE,'震地!','#ff8ac0',17); sfx('pick',.6,.5);
+    // the warning is the ring itself: dash out of it before it lands
+    shock(e.x,e.y,.25,P2.slamR,'#ff3d8a',P2.slamWarn,.08);
+    shock(e.x,e.y,.25,P2.slamR,'#ffffff',P2.slamWarn*.5,.05);
+  }
+  return false;
+}
 function updateRifts(dt){
   for(const r of S.rifts){
     if(!r.alive)continue;
@@ -2203,6 +2274,23 @@ function updateRifts(dt){
       const a=rnd(TAU), d=rnd(RIFT.r*TILE*.75);
       spawnUnit(q.type,r.x+Math.cos(a)*d,r.y+Math.sin(a)*d);
       burstFx(r.x,r.y,.9,'#ff8ac0',5,4,.1);
+    }
+    // surge: telegraph, then a whole pack at once. Only while the wave still has
+    // scripted spawns or overflow left, so a dead wave cannot be revived by it.
+    if(!S.purge&&(r.queue.length||r.overLeft>0)&&r.surgeT!==undefined){
+      if(r.surgeWarn>0){
+        r.surgeWarn-=dt;
+        if(Math.random()<dt*40){ const a=rnd(TAU),d=rnd(RIFT.r*TILE*1.6,RIFT.r*TILE);
+          part(r.x+Math.cos(a)*d,r.y+Math.sin(a)*d,.3,'#ff3d8a',{sp:rnd(2,.5),el:1.3,life:.5,r:.11,g:-2}); }
+        if(r.surgeWarn<=0)riftSurge(r);
+      } else {
+        r.surgeT-=dt;
+        if(r.surgeT<=0){
+          r.surgeWarn=RIFT.surgeWarn; r.surgeT=RIFT.surgeEvery(S.wave)*rnd(1.15,.85);
+          toast('⚠ 裂隙涌潮 · '+Math.ceil(RIFT.surgeWarn)+' 秒后爆发','#ff3d8a'); sfx('boss',.5,1.4);
+          shock(r.x,r.y,.3,4.5,'#ff3d8a',RIFT.surgeWarn,.12);
+        }
+      }
     }
     // scripted queue drained: an open rift keeps feeding the field until you close it
     if(!r.queue.length&&r.overLeft>0&&!S.purge){
@@ -2354,7 +2442,7 @@ function updatePurge(dt){
     toast('深渊失去耐心 · 残敌枯竭','#ffc247'); sfx('wave',.6,.7);
   }
   S.purge+=dt;
-  for(const r of S.rifts) if(r.alive&&r.overLeft>0){ r.overLeft=0; r.overflowing=false; }
+  for(const r of S.rifts) if(r.alive&&r.overLeft>0){ r.overLeft=0; r.overflowing=false; r.surgeWarn=0; }
   for(const e of live){
     e.purged=true;
     e.regenPct=0; e.regenT=9;
@@ -2542,6 +2630,7 @@ function fireAbility(a,x,y){
     shock(x,y,.3,a.r*1.5,'#ff9a3d',.9,.3); shock(x,y,.3,a.r*2.4,'#ffe89a',1.3,.2);
     for(let i=0;i<70;i++)part(x,y,.4,pick(['#ffb45a','#ff6b3d','#fff2b0']),{sp:rnd(15,3),r:rnd(.3,.1)});
     beam({x,y,z:14},{x,y,z:.3},'#ffe89a',6,.35);
+    World.scorch(x,y,a.r*1.3,40);
     nearEnemies(x,y,a.r*TILE+40,e=>{ if(!e.alive)return;
       const d=Math.sqrt(dist2(x,y,e.x,e.y));
       if(d<a.r*TILE+e.r){ hurt(e,dmg*clamp(1-(d/(a.r*TILE))*.4,.6,1),

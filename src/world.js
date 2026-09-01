@@ -11,7 +11,9 @@ let ghost=null,rangeRing=null,rangeDisc=null,selRing=null,aimRing=null,hoverPlat
 let playerObj=null,coreObj=null,coreRing=null,boardGroup=null,linkLines=null;
 const L={};
 const PMAX=1300, BMAX=1600;
-const CAM_OFF=new THREE.Vector3(0,15.8,8.9);
+/* a touch closer and a touch lower than before: the arena still spans the player's
+   whole rifle range across the frame, but a unit is a shape now, not a dot */
+const CAM_OFF=new THREE.Vector3(0,14.2,8.4);
 let camTarget=new THREE.Vector3(0,0,0);
 const propObjs=[], hazObjs=[];
 
@@ -38,6 +40,63 @@ function texEnv(){
   t.mapping=THREE.EquirectangularReflectionMapping; t.colorSpace=THREE.SRGBColorSpace; return t;
 }
 let DOT;
+function texHex(){
+  const c=document.createElement('canvas'); c.width=c.height=256; const x=c.getContext('2d');
+  x.clearRect(0,0,256,256);
+  x.strokeStyle='rgba(255,255,255,.9)'; x.lineWidth=2.2;
+  const R=36, w=Math.sqrt(3)*R, h=1.5*R;
+  const hexAt=(cx,cy)=>{ x.beginPath(); for(let i=0;i<6;i++){ const a=Math.PI/6+i*Math.PI/3;
+    const px=cx+Math.cos(a)*R*.9, py=cy+Math.sin(a)*R*.9; i?x.lineTo(px,py):x.moveTo(px,py); } x.closePath(); x.stroke(); };
+  for(let r=-1;r<7;r++)for(let q=-1;q<6;q++)hexAt(q*w+(r%2?w/2:0),r*h);
+  const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.colorSpace=THREE.SRGBColorSpace;
+  t.anisotropy=4; return t;
+}
+/* stars and drifting motes beyond the wall, so the edge of the deck is an edge
+   and not the end of the world */
+function makeBackdrop(B,rng){
+  const g=new THREE.Group();
+  const n=900, p=new Float32Array(n*3), c=new Float32Array(n*3);
+  const A=new THREE.Color(B.rimA), Bc=new THREE.Color(B.rimB);
+  for(let i=0;i<n;i++){
+    const a=rng()*TAU, d=HALFW+3+rng()*34;
+    p[i*3]=Math.cos(a)*d; p[i*3+1]=-3+rng()*14; p[i*3+2]=Math.sin(a)*d*.75;
+    const k=rng(), v=.25+rng()*.75, col=k<.5?A:Bc;
+    c[i*3]=col.r*v; c[i*3+1]=col.g*v; c[i*3+2]=col.b*v;
+  }
+  const geo2=new THREE.BufferGeometry();
+  geo2.setAttribute('position',new THREE.BufferAttribute(p,3));
+  geo2.setAttribute('color',new THREE.BufferAttribute(c,3));
+  const pts=new THREE.Points(geo2,new THREE.PointsMaterial({size:.16,map:DOT,vertexColors:true,transparent:true,
+    opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
+  g.add(pts); g.userData.stars=pts;
+  // a soft glow disc under the whole deck: the arena is lit from beneath, like a stage
+  const under=new THREE.Mesh(new THREE.CircleGeometry(HALFW*1.9,48),
+    new THREE.MeshBasicMaterial({color:new THREE.Color(B.rimA),transparent:true,opacity:.07,
+      blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
+  under.rotation.x=-Math.PI/2; under.position.y=-1.6; g.add(under);
+  return g;
+}
+/* burn marks that stay on the deck after something explodes on it */
+const scorchPool=[];
+function initScorch(){
+  const gm=new THREE.MeshBasicMaterial({map:TEX.blob,color:new THREE.Color('#000000'),transparent:true,
+    opacity:.55,depthWrite:false});
+  for(let i=0;i<28;i++){ const m=new THREE.Mesh(geo('blobG',()=>new THREE.PlaneGeometry(1,1)),gm.clone());
+    m.rotation.x=-Math.PI/2; m.position.y=.045; m.visible=false; m.renderOrder=-2; scene.add(m);
+    scorchPool.push({m,t:0,life:0}); }
+}
+let scorchI=0;
+function scorch(x,y,r,life=26){
+  if(!scorchPool.length)return;
+  const s=scorchPool[scorchI++%scorchPool.length];
+  s.m.visible=true; s.m.position.set(WX(x),.045,WZ(y)); s.m.rotation.z=Math.random()*TAU;
+  s.m.scale.setScalar(r*2.2); s.t=0; s.life=life; s.m.material.opacity=.55;
+}
+function updateScorch(dt){
+  for(const s of scorchPool){ if(!s.m.visible)continue; s.t+=dt;
+    const k=s.t/s.life; if(k>=1){ s.m.visible=false; continue; }
+    s.m.material.opacity=.55*(k<.7?1:(1-k)/.3); }
+}
 
 /* ---------- init ---------- */
 function init(){
@@ -46,7 +105,7 @@ function init(){
   ren.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
   ren.setSize(VW,VH,false);
   ren.shadowMap.enabled=true; ren.shadowMap.type=THREE.PCFSoftShadowMap;
-  ren.toneMapping=THREE.ACESFilmicToneMapping; ren.toneMappingExposure=1.32;
+  ren.toneMapping=THREE.ACESFilmicToneMapping; ren.toneMappingExposure=1.62;
   ren.outputColorSpace=THREE.SRGBColorSpace;
   scene=new THREE.Scene();
   scene.background=new THREE.Color('#05060e');
@@ -61,9 +120,9 @@ function init(){
   scene.environment=pmrem.fromEquirectangular(texEnv()).texture; pmrem.dispose();
 
   L.hemi=new THREE.HemisphereLight(0x6b81c4,0x0b0e1c,1.0); scene.add(L.hemi);
-  L.fill=new THREE.DirectionalLight(0x9fb6ff,.55); L.fill.position.set(-4,9,16); scene.add(L.fill);
+  L.fill=new THREE.DirectionalLight(0x9fb6ff,.75); L.fill.position.set(-4,9,16); scene.add(L.fill);
   const sun=L.sun=new THREE.DirectionalLight(0xdfeaff,2.15);
-  sun.position.set(11,26,10); sun.castShadow=true;
+  sun.position.set(13,21,9); sun.castShadow=true;
   // phones get a quarter-size shadow map: soft PCF over 2048² on a mobile GPU is
   // the single most expensive thing in the frame, and the top-down camera hides it
   const coarse=matchMedia('(pointer: coarse)').matches;
@@ -110,6 +169,7 @@ function init(){
   hoverPlate.visible=false; scene.add(hoverPlate);
 
   groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),-.05);
+  initScorch();
   Post.init(ren);
   addEventListener('resize',fit);
   addEventListener('orientationchange',()=>setTimeout(fit,120));
@@ -150,19 +210,30 @@ function buildBoard(){
   // retune the whole lighting rig to the region
   scene.fog.color.set(B.fog); scene.fog.density=B.fogD;
   scene.background.set(B.fog);
-  L.sun.color.set(B.sunC); L.sun.intensity=B.sunI;
-  L.hemi.color.set(B.hemiSky); L.hemi.groundColor.set(B.hemiGnd); L.hemi.intensity=B.hemiI;
+  L.sun.color.set(B.sunC); L.sun.intensity=B.sunI*1.12;
+  L.hemi.color.set(B.hemiSky); L.hemi.groundColor.set(B.hemiGnd); L.hemi.intensity=B.hemiI*1.25;
   L.rim.color.set(B.rimA); L.rim2.color.set(B.rimB);
   const G=groundTex(B.ground);
   [G.col,G.nrm,G.rgh].forEach(t2=>{ if(t2)t2.repeat.set(COLS/B.gRep,ROWS/B.gRep); });
   const floor=new THREE.Mesh(new THREE.PlaneGeometry(COLS,ROWS,1,1),
     new THREE.MeshStandardMaterial({
       map:G.col, normalMap:G.nrm, roughnessMap:G.rgh,
-      color:new THREE.Color(B.gTint),          // tint the scan down so it recedes
+      // the scan was tinted down to a mud that swallowed every shadow; lift it a
+      // third of the way back toward white so the surface has somewhere to go
+      color:new THREE.Color(B.gTint).lerp(new THREE.Color('#ffffff'),.28),
       normalScale:new THREE.Vector2(B.gNorm,B.gNorm),
       roughness:B.gRough, metalness:B.ground==='metal'?.35:.1,
       envMapIntensity:B.ground==='snow'?1.2:.8}));
   floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; boardGroup.add(floor);
+  // sci-fi hex lattice laid over the deck in the region's trim colour, faint
+  // enough to be texture rather than a pattern, brighter toward the Core
+  const hexT=texHex(); hexT.repeat.set(COLS/2.4,ROWS/2.4);
+  const hex=new THREE.Mesh(new THREE.PlaneGeometry(COLS,ROWS,1,1),
+    new THREE.MeshBasicMaterial({map:hexT,color:new THREE.Color(B.trim),transparent:true,opacity:.07,
+      blending:THREE.AdditiveBlending,depthWrite:false}));
+  hex.rotation.x=-Math.PI/2; hex.position.y=.035; boardGroup.add(hex); boardGroup.userData.hex=hex;
+  // and a dark horizon: the arena floats in a void with a nebula behind it
+  boardGroup.add(makeBackdrop(B,rng));
 
   const under=new THREE.Mesh(new THREE.BoxGeometry(COLS+2.4,1.4,ROWS+2.4),mat('#0a0d1a',{rough:.95,metal:.1}));
   under.position.y=-.72; boardGroup.add(under);
@@ -225,7 +296,7 @@ function disposeTree(o){o.traverse(n=>{if(n.geometry)n.geometry.dispose();
 
 /* ---------- entities ---------- */
 function addPlayer(){ if(playerObj){scene.remove(playerObj);disposeTree(playerObj);}
-  playerObj=makePlayer(); playerObj.scale.setScalar(1.3); scene.add(playerObj); }
+  playerObj=makePlayer(); playerObj.scale.setScalar(1.42); scene.add(playerObj); }
 function addTower(t){ const g=makeTower(t.key,t.lvl,t.elite);
   g.position.set(t.col+.5-HALFW,.36,t.row+.5-HALFH); scene.add(g); t.obj=g; }
 function refreshTower(t){ if(t.obj){scene.remove(t.obj);disposeTree(t.obj);} addTower(t); }
@@ -407,10 +478,12 @@ function frame(dt,now){
   cam.position.set(camTarget.x+CAM_OFF.x*pull+(Math.random()-.5)*sh,CAM_OFF.y*pull+(Math.random()-.5)*sh,
                    camTarget.z+CAM_OFF.z*pull+(Math.random()-.5)*sh);
   cam.lookAt(camTarget.x+(Math.random()-.5)*sh*.4,0,camTarget.z);
-  if(World_sun){ World_sun.position.set(camTarget.x+11,26,camTarget.z+10);
+  if(World_sun){ World_sun.position.set(camTarget.x+13,21,camTarget.z+9);
     World_sun.target.position.set(camTarget.x,0,camTarget.z); World_sun.target.updateMatrixWorld(); }
 
   if(dust)dust.rotation.y+=dt*.012;
+  updateScorch(dt);
+  if(boardGroup&&boardGroup.userData.hex)boardGroup.userData.hex.material.opacity=.06+Math.sin(now*.8)*.02;
   updateCorpses(dt);
 
   // core
@@ -739,6 +812,6 @@ return {init,buildBoard,frame,pick,proj,
   get lights(){return L;},addTower,removeTower,refreshTower,addEnemy,removeEnemy,
   addShot,removeShot,addPlayer,initDropPool,setRange,setGhost,setSel,setAim,fit,
   addRift,removeRift,addSalvage,removeSalvage,updateLinks,removeProp,addHazardLate,removeHazard,
-  addPickup,removePickup,addCloud,removeCloud,
+  addPickup,removePickup,addCloud,removeCloud,scorch,
   get scene(){return scene;}, get cam(){return cam;}};
 })();

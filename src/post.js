@@ -27,7 +27,9 @@ void main(){
 }`;
 
 const COMP=`
-uniform sampler2D tBase, tBloom; uniform float uAmt; uniform vec2 uRes; varying vec2 vUv;
+uniform sampler2D tBase, tBloom, tDepth; uniform float uAmt, uTime, uNear, uFar, uInk; uniform vec2 uRes; varying vec2 vUv;
+float linD(vec2 uv){ float z=texture2D(tDepth,uv).x; float nz=z*2.0-1.0; return (2.0*uNear*uFar)/(uFar+uNear-nz*(uFar-uNear)); }
+float hash(vec2 p){ return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
 void main(){
   vec2 d=vUv-0.5;
   // lens dispersion grows toward the edges, so the frame reads like glass
@@ -38,12 +40,24 @@ void main(){
   base.b=texture2D(tBase,vUv-d*ca).b;
   vec3 bloom=texture2D(tBloom,vUv).rgb;
   vec3 c=base+bloom*uAmt;
+  // ink outline from depth discontinuities: every unit, turret and prop gets a
+  // dark edge against whatever is behind it, which is what makes small models
+  // read as drawn shapes instead of lit blobs
+  { vec2 px=1.0/uRes; float d0=linD(vUv);
+    float dx=abs(linD(vUv+vec2(px.x,0.))-d0)+abs(linD(vUv-vec2(px.x,0.))-d0);
+    float dy=abs(linD(vUv+vec2(0.,px.y))-d0)+abs(linD(vUv-vec2(0.,px.y))-d0);
+    float e=smoothstep(0.045,0.16,(dx+dy)/max(d0*0.06,0.001));
+    c*=1.0-e*uInk; }
   // grade: lift the shadows toward deep blue, warm the highlights a touch
   float l=dot(c,vec3(0.2126,0.7152,0.0722));
   c=mix(c,vec3(0.04,0.06,0.13)+c*0.92,clamp(1.0-l*2.4,0.0,1.0)*0.55);
   c*=mix(vec3(0.95,0.98,1.06),vec3(1.06,1.01,0.94),clamp(l*1.35,0.0,1.0));
-  c=(c-0.5)*1.075+0.5;                       // gentle contrast
+  c=(c-0.5)*1.11+0.5;                        // a little more punch than before
   c*=1.0-dot(d,d)*0.42;                      // vignette
+  // fine film grain, refreshed every frame: kills the flat plastic look of
+  // large untextured areas without reading as noise
+  float gr=hash(vUv*uRes.xy*0.5+fract(uTime*7.31)*vec2(97.0,31.0))-0.5;
+  c+=gr*0.035;
   // ShaderMaterial gets no automatic output chunks: encode linear -> sRGB by hand
   c=clamp(c,0.0,1.0);
   vec3 lo=c*12.92, hi=1.055*pow(c,vec3(1.0/2.4))-0.055;
@@ -64,14 +78,16 @@ function init(renderer){
     depthBuffer:true,stencilBuffer:false};
   rtScene=new THREE.WebGLRenderTarget(W0,H0,opt);
   rtScene.texture.colorSpace=THREE.LinearSRGBColorSpace;
+  // depth is kept for the ink outline in the composite pass
+  rtScene.depthTexture=new THREE.DepthTexture(W0,H0); rtScene.depthTexture.type=THREE.UnsignedIntType;
   const o2=Object.assign({},opt,{depthBuffer:false});
   rtA=new THREE.WebGLRenderTarget(W1,H1,o2);
   rtB=new THREE.WebGLRenderTarget(W1,H1,o2);
   rtA.texture.colorSpace=rtB.texture.colorSpace=THREE.LinearSRGBColorSpace;
 
-  mBright=makeMat(BRIGHT,{tSrc:{value:null},uThresh:{value:.74},uKnee:{value:.28}});
+  mBright=makeMat(BRIGHT,{tSrc:{value:null},uThresh:{value:.68},uKnee:{value:.3}});
   mBlur  =makeMat(BLUR,  {tSrc:{value:null},uDir:{value:new THREE.Vector2()}});
-  mComp  =makeMat(COMP,  {tBase:{value:null},tBloom:{value:null},uAmt:{value:.58},
+  mComp  =makeMat(COMP,  {tBase:{value:null},tBloom:{value:null},tDepth:{value:null},uNear:{value:.5},uFar:{value:160},uInk:{value:.8},uAmt:{value:.66},uTime:{value:0},
     uRes:{value:new THREE.Vector2(W0,H0)}});
 
   scn=new THREE.Scene(); cm=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
@@ -87,9 +103,12 @@ function render(scene,cam){
     mBlur.uniforms.tSrc.value=rtB.texture; mBlur.uniforms.uDir.value.set(0,1/H1); pass(mBlur,rtA);
   }
   mComp.uniforms.tBase.value=rtScene.texture; mComp.uniforms.tBloom.value=rtA.texture;
+  mComp.uniforms.uTime.value=performance.now()/1000;
+  mComp.uniforms.tDepth.value=rtScene.depthTexture; mComp.uniforms.uNear.value=cam.near; mComp.uniforms.uFar.value=cam.far;
   pass(mComp,null);
 }
 function setAmount(a){ if(mComp)mComp.uniforms.uAmt.value=a; }
+function setInk(a){ if(mComp)mComp.uniforms.uInk.value=a; }
 function resize(){
   if(!ren||!rtScene)return;
   const v=new THREE.Vector2(); ren.getDrawingBufferSize(v);
@@ -97,7 +116,8 @@ function resize(){
   if(w===W0&&h===H0)return;
   W0=w; H0=h; W1=Math.max(2,Math.floor(w/2)); H1=Math.max(2,Math.floor(h/2));
   rtScene.setSize(W0,H0); rtA.setSize(W1,H1); rtB.setSize(W1,H1);
+  if(rtScene.depthTexture){ rtScene.depthTexture.image.width=W0; rtScene.depthTexture.image.height=H0; rtScene.depthTexture.needsUpdate=true; }
   mComp.uniforms.uRes.value.set(W0,H0);
 }
-return {init,render,setAmount,resize};
+return {init,render,setAmount,setInk,resize};
 })();

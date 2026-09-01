@@ -247,13 +247,20 @@ function drawOverlay(){
     c2.fillStyle='#ff3d8a'; c2.fillRect(p.x-w/2,p.y,w*clamp(r.hp/r.maxHp,0,1),bh);
     c2.strokeStyle='rgba(255,61,138,.5)';c2.lineWidth=1;c2.strokeRect(p.x-w/2-2.5,p.y-2.5,w+5,bh+5);
     c2.font='600 10px "Chakra Petch",sans-serif';c2.fillStyle='#ffd7e2';c2.textAlign='center';
-    c2.fillText('裂隙 '+(r.queue.length?('增援 '+r.queue.length):'已空'),p.x,p.y-9);
+    const surge=r.surgeWarn>0?'涌潮 '+r.surgeWarn.toFixed(1)+'s':(r.queue.length||r.overLeft>0)&&r.surgeT!==undefined?'涌潮 '+Math.ceil(r.surgeT)+'s':null;
+    c2.fillStyle=r.surgeWarn>0?'#ff8ac0':'#ffd7e2';
+    c2.fillText('裂隙 '+(r.queue.length?('增援 '+r.queue.length):'已空')+(surge?' · '+surge:''),p.x,p.y-9);
+    if(r.surgeWarn>0){ const b=(Math.sin(S.time*18)+1)*.5;
+      c2.strokeStyle='rgba(255,61,138,'+(.4+b*.5)+')'; c2.lineWidth=2.5;
+      c2.strokeRect(p.x-w/2-5,p.y-5,w+10,bh+10); }
   }
   // if a destructible prop is your current target, show the area its payoff covers
+  // the dashed blast ring used to sit on screen for any crate within 9 tiles,
+  // which in region one is always; now only when you are about to be inside it
   let blastProp=null;
   if(S.P&&S.P.alive){
     for(const o of S.obstacles){ const P0=PROPS[o.kind];
-      if(P0&&P0.boom&&dist2(S.P.x,S.P.y,o.x,o.y)<(9*TILE)**2){ blastProp=o; break; } }
+      if(P0&&P0.boom&&dist2(S.P.x,S.P.y,o.x,o.y)<((o.r+3.9)*TILE)**2){ blastProp=o; break; } }
   }
   if(blastProp||(S.P&&S.P.lock&&S.P.lock.k==='prop')){
     const o=blastProp||S.P.lock.ref, P0=PROPS[o.kind]||{};
@@ -394,6 +401,8 @@ function drawMini(){
   for(const t of S.towers){ mctx.fillStyle=t.def.c; mctx.fillRect(t.x*sx-1.5,t.y*sy-1.5,3,3); }
   // rifts + salvage
   for(const r of S.rifts){ if(!r.alive)continue;
+    if(r.surgeWarn>0){ mctx.fillStyle='rgba(255,61,138,'+(.25+.35*Math.abs(Math.sin(S.time*12)))+')';
+      mctx.beginPath();mctx.arc(r.x*sx,r.y*sy,11,0,TAU);mctx.fill(); }
     mctx.strokeStyle='#ff3d8a';mctx.lineWidth=2;
     mctx.beginPath();mctx.arc(r.x*sx,r.y*sy,5,0,TAU);mctx.stroke();
     mctx.fillStyle='rgba(255,61,138,.35)';mctx.beginPath();mctx.arc(r.x*sx,r.y*sy,5,0,TAU);mctx.fill(); }
@@ -1091,7 +1100,9 @@ function helpRows(){
     '<div><b>护甲</b>：重甲敌人会把普通子弹削到 15%，屏幕上跳「护甲」两字就是这个。用<u>蓄力重击</u>，它完全无视护甲。</div>'+
     '<div><b>架势崩溃</b>：只有<u>你的</u>命中会积累敌人的架势条，打满会让它踉跄倒地。炮塔的火力只能让它们原地一顿，不能崩架势。</div>'+
     '<div><b>精英</b>：带词缀的、名字带前缀的、以及首领和 BOSS，受到<u>炮塔伤害只有 45%</u>。杂兵交给炮塔，有名字的东西得你自己打。</div>'+
-    '<div><b>裂隙</b>：每波会开若干道裂隙，<u>只有你的子弹和轨道轰炸能伤害它</u>。不关掉它就会一直涌出增援。关闭可累积「据点扩建」，2 / 4 / 6 道各永久 +1 炮塔位。</div>'+
+    '<div><b>裂隙</b>：每波会开若干道裂隙，<u>只有你的子弹和轨道轰炸能伤害它</u>。开着的裂隙会周期性<u>涌潮</u>：预警 2.6 秒后一口气涌出一整群，'+
+      '炮塔线吃不下这种尖峰，你得去顶。关掉它涌潮就停，并累积「据点扩建」，2 / 4 / 6 道各永久 +1 炮塔位。</div>'+
+    '<div><b>BOSS 二阶段</b>：区域 BOSS 与攻城巨兽掉到半血会狂暴：更快、齐射更多，并会<u>震地</u>——脚下先出现粉色预警圈，圈没消失前冲刺出去。</div>'+
     '<div><b>炮塔上限</b>：每个区域能同时拥有的炮塔数是固定的（第一区 4 座，逐区递增）。变强靠<u>升级和改造</u>，不是靠数量。</div>'+
     '<div><b>残骸</b>：站着不动 2.9 秒拆解。拆解期间会张开护场——<u>你受到的伤害减半</u>，'+
       '靠近的敌人被拖慢。完成后除了碎片，还给<u>大招 +22%</u> 和两份应急医疗；'+

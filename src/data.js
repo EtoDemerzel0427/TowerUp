@@ -261,9 +261,13 @@ const ENEMIES={
    split:['spawn','spawn','spawn'],atk:14,atkRate:1.1,atkR:.65},
  spawn:{name:'裂片',hp:46,sp:3.4,armor:0,xp:2,scrap:1,r:8,c:'#ffbe7a',poiseFrac:.50,breakStun:.55,breakAggro:10.3,poise:.5,recoil:.35,aim:'both',atk:6,atkRate:.8,atkR:.45},
  jug:{name:'攻城巨兽',scale:1.2,hp:1000,sp:1.15,armor:26,xp:34,scrap:19,r:19,c:'#6f7aa8',poiseFrac:.17,breakStun:1.80,breakAggro:11.5,poise:9,siege:3.2,sap:1.0,shot:{dmg:34,rate:3.8,range:9.5,sp:10,style:'siege',n:1},aim:'core',
-   noStun:true,atk:70,atkRate:2.0,atkR:.95},
+   noStun:true,atk:70,atkRate:2.0,atkR:.95,
+   phase2:{hp:.5,sp:1.25,volley:2,slamEvery:9,slamWarn:1.2,slamR:2.8,slamDmg:45,slamKnock:12}},
  boss:{name:'深渊领主',scale:1.5,hp:4400,sp:1.25,armor:22,xp:150,scrap:135,r:26,c:'#ff3d8a',poiseFrac:.085,breakStun:1.50,breakAggro:9.2,poise:22,shot:{dmg:27,rate:2.4,range:11,sp:15,style:'volley',n:3},aim:'both',
-   noStun:true,slowRes:.6,boss:true,aura:1.25,auraR:4,atk:95,atkRate:1.6,atkR:1.3},
+   noStun:true,slowRes:.6,boss:true,aura:1.25,auraR:4,atk:95,atkRate:1.6,atkR:1.3,
+   /* below half health: faster, a five-shot volley, and a telegraphed ground slam
+      every few seconds that has to be dashed out of */
+   phase2:{hp:.5,sp:1.35,volley:5,slamEvery:7,slamWarn:1.3,slamR:3.6,slamDmg:60,slamKnock:14}},
 };
 
 /* ---------- elite affixes: ordinary units promoted into real threats ---------- */
@@ -298,7 +302,7 @@ const PICKUPS={
 const PICKUP_KEYS=Object.keys(PICKUPS);
 
 /* ---------- waves: spawn at the arena rim, from every side ---------- */
-function eliteCount(w){ return w<4?0:Math.min(6,1+Math.floor((w-4)/3)); }
+function eliteCount(w){ return w<4?0:Math.min(8,1+Math.floor((w-3)/2.5)); }
 /* Each region ends on its own boss, with its named heavy the wave before.
    This used to key off the global wave number (w%5), but the regions are 5/6/7/7/5
    waves long, so from region two onward the cadence drifted: the boss landed
@@ -358,10 +362,21 @@ function waveComp(w,wis,wlen,stage){
    the "cuts off reinforcements" promise was mostly false. An open rift now keeps
    producing. The budget is finite so a wave still terminates, but it is big enough
    that leaving one open for a whole wave genuinely costs you. */
-const RIFT={hp:400,hpPerWave:.40,r:1.15,scrap:150,xp:110,
+/* Rift scrap used to climb 16% a wave: a rift-rusher was clearing 2000+ a wave by
+   region three and sat on 30k with nothing to buy. The reward for closing one is
+   now mostly that it stops -- an open rift SURGES: every so often it telegraphs
+   for a couple of seconds and then dumps a whole pack at once, faster than your
+   line can chew through. That is the pressure spike the towers cannot absorb
+   alone, and it only ever comes from a rift you left standing. */
+const RIFT={hp:400,hpPerWave:.40,r:1.15,scrap:120,scrapPerWave:.07,xp:110,
   overflowPool:['grunt','runner','swarm'],
   overflowEvery:w=>clamp(5.4-w*.13,2.4,5.4),
-  overflowBudget:w=>3+Math.floor(w*.7)};
+  overflowBudget:w=>4+Math.floor(w*.8),
+  surgeFirst:w=>clamp(15-w*.25,8,15),        // seconds after the rift opens
+  surgeEvery:w=>clamp(20-w*.35,10,20),       // and between surges
+  surgeWarn:2.6,
+  surgeN:w=>Math.min(12,4+Math.floor(w*.35)),
+  surgeHeavyFrom:6, surgeHeavyPool:['brute','shield','shooter','splitter']};
 const SALVAGE={amount:80,time:2.9,r:1.5};
 const LINK_R=3.3;
 /* Measured over region 1-3: enemy health climbed 151% while the player's own gun
@@ -374,8 +389,13 @@ const LINK_R=3.3;
    can actually see the thing you are shooting. */
 const TRASH=['grunt','runner','swarm'];
 function packScale(w){ return clamp(1+(w-7)*.13,1,2.8); }
-function hpScale(w){return (1+.105*(w-1))*Math.pow(1.035,Math.max(0,w-14));}
-function spScale(w){return Math.min(1.45,1+.008*Math.max(0,w-4));}
+/* Measured with a kiting bot on 老兵: the Core did not lose a point of health from
+   wave 1 to wave 24 and the bot dropped three lives in 25 waves. Enemies fell
+   behind a LV4 line and a levelled rifle by region two. Steeper, and earlier. */
+function hpScale(w){return (1+.125*(w-1))*Math.pow(1.04,Math.max(0,w-11));}
+function spScale(w){return Math.min(1.6,1+.011*Math.max(0,w-3));}
+/* enemy hit and shot damage share one curve */
+function atkScale(w){return 1+.07*w;}
 
 /* ---------- level-up cards ---------- */
 const CARDS=[
