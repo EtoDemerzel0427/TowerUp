@@ -1357,7 +1357,12 @@ function updatePlayer(dt){
     P.aim=norm(P.aim+norm(T.aim.a-P.aim)*Math.min(1,dt*16));
     P.fine=false;
   } else if(KM.fine){
-    // free aim: hold to steer the barrel by hand (for lining up a specific spot)
+    // free aim: hold to steer the barrel by hand (for lining up a specific spot).
+    // This used to switch auto-aim off in complete silence, and in the old key
+    // layout it sat on S -- so anyone walking with WASD held it permanently and
+    // never knew why the gun had stopped tracking. Say it out loud, once.
+    if(!S.fineHint){ S.fineHint=true;
+      toast('自由瞄准中 · 松开即恢复自动跟枪','#ffc247'); }
     P.lock=null;
     if(turn!==0){
       P.turnHold=Math.min(1,P.turnHold+dt/PLAYER.turnRamp);

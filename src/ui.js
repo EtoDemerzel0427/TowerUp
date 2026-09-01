@@ -743,6 +743,7 @@ function bindTouch(){
   const ui=$('touchUI');
   if(!isTouch())return;
   S.touch.on=true; ui.classList.remove('hide');
+  S.autoFire=true;   // no keyboard trigger here, so the barrel fires for you
   const board=document.getElementById('board');
   S.touch.r=stickRadius();
   addEventListener('resize',()=>{S.touch.r=stickRadius();});
@@ -780,7 +781,7 @@ function bindTouch(){
     b.addEventListener('pointerup',e=>{e.preventDefault();if(up)up();});
     b.addEventListener('pointercancel',e=>{if(up)up();});
   };
-  toast('自动瞄准已开启 · 左摇杆走位，右摇杆可手动修正','#35e6ff');
+  toast('自动瞄准与开火已开启 · 左摇杆走位','#35e6ff');
   hold('tDash',()=>dash());
   hold('tCharge',()=>{S.touch.charge=true;},()=>{S.touch.charge=false;});
   hold('tUlt',()=>{ S.keys['q']=true; setTimeout(()=>{S.keys['q']=false;},60); });
@@ -863,7 +864,8 @@ function bindInput(){
   el.bPause.onclick=togglePause;
   el.bSound.onclick=toggleSound;
   el.bLayout.onclick=toggleLayout;
-  const ab=$('bAuto'); if(ab){ ab.onclick=toggleAuto; ab.classList.toggle('on',S.autoFire); }
+  const ab=$('bAuto'); if(ab){ ab.onclick=toggleAuto;
+    ab.classList.toggle('on',S.autoFire); ab.textContent=S.autoFire?'⊙':'⊘'; }
 }
 /* step the selection through your turrets so R / T can act on one from anywhere */
 function cycleTowerSel(dir){
@@ -976,7 +978,7 @@ function startGame(){
   S.scrap=pickDiff.scrap; S.wave=0; S.time=0; S.rest=REST; S.qt=0;
   S.running=true; S.over=false; S.paused=false; S.victory=false; S.speed=1; S.waveActive=false;
   S.kills=0; S.earned=0; S.combo=0; S.comboT=0; S.overT=0; S.build=null; S.aim=null; S.sel=null;
-  S.lastKill=0; S.purge=0; S.armorHint=false; S.eliteHint=false;
+  S.lastKill=0; S.purge=0; S.armorHint=false; S.eliteHint=false; S.fineHint=false;
   S.shake=0; S.flash=0;
   S.level=1; S.xp=0; S.xpNeed=xpForLevel(1); S.pendingCards=0; S.cards=null; S.cardCount={};
   S.st=freshStats(); S.P=newPlayer();
