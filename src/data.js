@@ -139,6 +139,16 @@ const TOWER_SLOTS_BASE=4;
 const SLOT_BONUS_MAX=3;
 const RIFT_SLOT_STEPS=[2,4,6];   // rifts to close for the 1st / 2nd / 3rd earned slot
 const TOWER_HP=[620,940,1300,1760], TOWER_HP_ELITE=520;
+/* A turret that reached LV4 with an elite branch used to be a dead end — the
+   inspector literally said 已达最高强化 and every later scrap had nowhere to go.
+   Overclock is the overflow sink. It is deliberately a WORSE rate than the core
+   terminal (cost climbs 1.55x a step while the gain stays flat), so it is what
+   you do with genuine surplus, never the optimal buy. */
+const OC_BASE=240, OC_MUL=1.55, OC_DMG=.08, OC_RATE=.04, OC_MAX=12;
+/* The core upgrade tree was only reachable during a region teleport — 58% of all
+   the scrap in a run, and 100% of the player-growth line, locked behind four
+   moments. In the terminal region it could never be opened again. */
+const CORE_TERM_R=6;
 const CORE_UP=[
  {id:'logi',  n:'工程模块', gl:'⚙', d:'炮塔造价增幅 -25%（可叠加）',  cost:230, step:95,  max:4},
  {id:'hp',    n:'装甲板',   gl:'⬢', d:'核心最大生命 +700',        cost:220, step:90,  max:8},

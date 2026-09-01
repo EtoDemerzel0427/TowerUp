@@ -7,6 +7,7 @@ const el={scrap:$('vScrap'),power:$('vPower'),mul:$('vMul'),lives:$('vLives'),
   hptrack:document.querySelector('.hptrack'),dashFill:$('dashFill'),heatFill:$('heatFill'),heatWord:$('heatWord'),
   ultFill:$('ultFill'),ultWord:$('ultWord'),ultRow:document.querySelector('.ultrow'),
   heatRow:document.querySelector('.heatrow'),
+  ovlTerm:$('ovlTerm'),termHint:$('termHint'),termGrid:$('termGrid'),termScrap:$('termScrap'),bTermClose:$('bTermClose'),
   shop:$('shop'),secBuild:$('secBuild'),secInsp:$('secInsp'),wavePrev:$('wavePrev'),
   waveTag:$('waveTag'),bNext:$('bNext'),nextBonus:$('nextBonus'),log:$('log'),perks:$('perks'),
   banner:$('banner'),bannerT:$('bannerT'),abilities:$('abilities'),mini:$('mini'),
@@ -502,6 +503,7 @@ function renderInspector(){
   let pips='';
   for(let i=0;i<4;i++)pips+='<span class="pip'+(i<t.lvl?' on':'')+'"></span>';
   if(t.elite!=null)pips+='<span class="pip elite"></span>';
+  if(t.oc)pips+='<span class="ocpip">超频 \u00d7'+t.oc+'</span>';
   const row=(l,v,frac,extra)=>'<div class="stat"><span class="sl">'+l+'</span><span class="bar"><i style="width:'+
     Math.round(clamp(frac,0,1)*100)+'%"></i></span><span class="sv">'+v+(extra?' <u>'+extra+'</u>':'')+'</span></div>';
   let stats='';
@@ -552,8 +554,17 @@ function renderInspector(){
         '><b>'+e.n+' · '+c+' 碎片</b><span>'+e.d+'</span></button>'; });
     actions+='</div><div class="btnrow"><button class="btn sell" id="bSell" style="flex:1">出售 <small>+'+sellValue(t)+'</small></button></div>';
   }else{
-    actions='<div class="btnrow"><button class="btn" disabled>已达最高强化</button>'+
-      '<button class="btn sell" id="bSell">出售<small>+'+sellValue(t)+'</small></button></div>';
+    // LV4 + elite used to end here with a disabled 已达最高强化 button. Overclock
+    // keeps the emplacement buyable forever, at a rate that gets worse every step.
+    const oc=t.oc||0, occ=overclockCost(t);
+    actions=canOverclock(t)
+      ? '<div class="btnrow"><button class="btn up" id="bOc"'+(S.scrap<occ?' disabled':'')+
+        '>超频 \u00d7'+(oc+1)+'<small>'+occ+' 碎片</small></button>'+
+        '<button class="btn sell" id="bSell">出售<small>+'+sellValue(t)+'</small></button></div>'+
+        '<div class="desc">每级 +'+Math.round(OC_DMG*100)+'% 伤害、+'+Math.round(OC_RATE*100)+
+        '% 射速，代价逐级抬升。当前 +'+Math.round(OC_DMG*oc*100)+'% / +'+Math.round(OC_RATE*oc*100)+'%。</div>'
+      : '<div class="btnrow"><button class="btn" disabled>超频已达上限 \u00d7'+oc+'</button>'+
+        '<button class="btn sell" id="bSell">出售<small>+'+sellValue(t)+'</small></button></div>';
   }
   el.secInsp.innerHTML=
     '<div class="sec-h"><h2>炮塔</h2><em>击杀 '+t.kills+' · 输出 '+fmt(t.dealt)+'</em></div>'+
@@ -566,6 +577,7 @@ function renderInspector(){
     '<div class="desc">'+d.desc+'</div>'+actions+refit+
     '<button class="btn" id="bClose" style="margin-top:7px;width:100%">返回建造列表</button>';
   const up=$('bUp'); if(up)up.onclick=()=>upgradeTower(t);
+  const oc2=$('bOc'); if(oc2)oc2.onclick=()=>{overclockTower(t);renderInspector();};
   const fx2=$('bFix'); if(fx2)fx2.onclick=()=>{repairTower(t);renderInspector();};
   const sl=$('bSell'); if(sl)sl.onclick=()=>sellTower(t);
   $('bClose').onclick=()=>selectTower(null);
@@ -718,6 +730,16 @@ const UI={
   if(!S.waveActive&&S.running&&!S.over){
     el.nextBonus.textContent='+'+Math.ceil(S.rest)*4+' 碎片 ('+Math.ceil(S.rest)+'s)';
   }else{ el.nextBonus.textContent=S.waveActive?'进行中':''; }
+  // the terminal is only reachable from the Core between waves; say so on the HUD
+  // at the moment it becomes usable, or it is a keybind nobody ever discovers
+  if(el.termHint){
+    const open=typeof coreTermOpen==='function'&&coreTermOpen();
+    const ok=open&&coreTermReady();
+    // the prompt sits over the panel it opens, so it has to go while it is up
+    el.termHint.classList.toggle('hide',!open||!el.ovlTerm.classList.contains('hide'));
+    el.termHint.classList.toggle('ready',!!ok);
+    el.termHint.textContent=ok?'F · 接入核心终端':'回到核心可接入终端 (F)';
+  }
   for(const b of el.abilities.children){
     const st2=S.abil[b.dataset.a]; if(!st2)continue;
     const cool=st2.cd>0;
@@ -736,9 +758,10 @@ const UI={
   el.ovlTele.classList.remove('hide');
  },
  hideTeleport(){ el.ovlTele.classList.add('hide'); },
- renderUpgrades(){
-  el.teleScrap.textContent=S.scrap;
-  el.upGrid.innerHTML='';
+ renderUpgrades(grid,scrapEl){
+  grid=grid||el.upGrid; scrapEl=scrapEl||el.teleScrap;
+  scrapEl.textContent=S.scrap;
+  grid.innerHTML='';
   for(const u2 of CORE_UP){
     const lv=S.coreUp[u2.id]||0, maxed=lv>=u2.max, cost=coreUpCost(u2,lv);
     const b=document.createElement('button');
@@ -751,8 +774,8 @@ const UI={
       S.scrap-=cost; S.coreUp[u2.id]=lv+1; applyCoreUpgrades(true); recalcPower();
       if(u2.id==='life'){ S.playerLives=Math.min(maxLives(),S.playerLives+1);
         toast('备用信标上线 · 命数 '+S.playerLives+' / '+maxLives(),'#6ee7a8'); }
-      sfx('up'); UI.renderUpgrades(); UI.sync(); };
-    el.upGrid.appendChild(b);
+      sfx('up'); UI.renderUpgrades(grid,scrapEl); UI.sync(); };
+    grid.appendChild(b);
   }
  },
  showCards(cards){
@@ -907,11 +930,14 @@ function bindInput(){
     S.keys[k]=true;
     if(ev.repeat)return;
     if(k==='escape'){
+      if(!el.ovlTerm.classList.contains('hide')){ closeCoreTerm(); return; }
       if(!el.ovlHelp.classList.contains('hide')){ closeHelp(); return; }
       if(!el.ovlTutDone.classList.contains('hide')){ el.ovlTutDone.classList.add('hide');
         el.ovlStart.classList.remove('hide'); return; }
       S.build=null;World.setGhost(null);selectTower(null);UI.sync();return;}
     if(!S.running||S.cards)return;
+    if(k==='f'){ if(el.ovlTerm.classList.contains('hide'))openCoreTerm(); else closeCoreTerm(); return; }
+    if(!el.ovlTerm.classList.contains('hide'))return;
     if(k==='e'){ buildHere(); return; }
     if(k==='r'){ upgradeHere(); return; }
     if(k==='t'){ sellHere(); return; }
@@ -1000,6 +1026,12 @@ function helpRows(){
     row(['[',']'],'切换已建炮塔 · 可<u>隔空</u>升级、出售、改造'),
     row(['V'],'把选中的炮塔改造为 1–8 所选型号 · 保留位置与塔位'),
     row(['Esc'],'取消建造 / 取消选中'),
+    row(['—'],'LV4 且已选精英分支后可反复<u>超频</u> · 每级更贵，是溢出碎片的去处'),
+  ]);
+  const coreSec=sec('核心终端',[
+    row(['F'],'<u>塔位建满后</u>，波次间隙站在核心旁接入 · 购买核心永久升级'),
+    row(['—'],'命数上限、个人装甲、武器校准都在这里 · <u>不随区域重置</u>'),
+    row(['—'],'区域传送时也会自动打开同一份升级列表'),
   ]);
   const skillSec=sec('技能与节奏',[
     row(['Z'],ABILITIES[0].n+' · '+ABILITIES[0].desc),
@@ -1023,7 +1055,7 @@ function helpRows(){
     row(['菜单'],'拉出建造面板（会暂停）· <u>建造</u> / <u>升级</u> 作用于脚下'),
   ]);
 
-  return '<div class="helpgrid">'+moveSec+fightSec+towerSec+skillSec+sysSec+touchSec+'</div>'+
+  return '<div class="helpgrid">'+moveSec+fightSec+towerSec+coreSec+skillSec+sysSec+touchSec+'</div>'+
     '<div class="hnote">'+
     '<div><b>护甲</b>：重甲敌人会把普通子弹削到 15%，屏幕上跳「护甲」两字就是这个。用<u>蓄力重击</u>，它完全无视护甲。</div>'+
     '<div><b>架势崩溃</b>：只有<u>你的</u>命中会积累敌人的架势条，打满会让它踉跄倒地。炮塔的火力只能让它们原地一顿，不能崩架势。</div>'+
@@ -1059,6 +1091,35 @@ function closeHelp(){
   if(S.running&&!helpWasPaused)S.paused=false;
 }
 function toggleHelp(){ el.ovlHelp.classList.contains('hide')?openHelp():closeHelp(); }
+/* The core upgrade tree used to exist only inside the region-teleport overlay.
+   That put more than half of a run's scrap — and the whole life/armour/weapon
+   line — behind four moments, and made it unreachable for good in the last
+   region. The terminal opens the same tree between waves, standing at the Core. */
+function coreTermOpen(){
+  /* Gated on a full emplacement line on purpose. Scrap early on belongs in the
+     defence; opened from wave 1 it is a way to starve your own towers and lose.
+     Full slots is exactly the state the terminal exists for — the point where
+     scrap keeps coming in and the turrets have nowhere left to put it. */
+  return S.running&&!S.over&&!S.waveActive&&!S.cards&&!S.teleporting&&
+    S.P&&S.P.alive&&slotsFull();
+}
+function coreTermReady(){
+  return coreTermOpen()&&!S.paused&&Math.hypot(S.P.x-CX,S.P.y-CY)/TILE<=CORE_TERM_R;
+}
+function openCoreTerm(){
+  if(!coreTermReady()){
+    if(!S.running||S.over)return;
+    if(S.waveActive)toast('战斗中无法接入终端 · 清完这一波再来','#8d96bd');
+    else if(!slotsFull())toast('塔位未满 '+S.towers.length+'/'+towerSlots()+' · 先把防线建满','#8d96bd');
+    else toast('需要靠近核心 · F 接入终端','#8d96bd');
+    return; }
+  S.paused=true; UI.renderUpgrades(el.termGrid,el.termScrap);
+  el.ovlTerm.classList.remove('hide'); sfx('ability',.5);
+}
+function closeCoreTerm(){
+  if(el.ovlTerm.classList.contains('hide'))return;
+  el.ovlTerm.classList.add('hide'); S.paused=false;
+}
 function togglePause(){ if(S.cards)return;
   S.paused=!S.paused;el.bPause.textContent=S.paused?'▶':'⏸';el.bPause.classList.toggle('on',S.paused);}
 function cycleSpeed(){S.speed=S.speed===1?2:S.speed===2?3:1;el.bSpeed.textContent='×'+S.speed;
@@ -1280,6 +1341,7 @@ function boot(){
   S.running=false;
   el.bPlay.onclick=startGame;
   el.bNextStage.onclick=()=>{ac();nextStage();};
+  el.bTermClose.onclick=()=>{ac();closeCoreTerm();};
   UI.sync();
   try{ if(!localStorage.getItem('abyss2_tutorial_done')){
     localStorage.setItem('abyss2_seen_help','1'); startTutorial(); } }catch(e){}

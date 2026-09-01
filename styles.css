@@ -549,3 +549,16 @@ body.shortscreen .minimap{display:none}
   .board{width:min(100%,calc((100vh - 28px) * 1200/680))}
 }
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* Core terminal: the prompt only appears between waves, and only lights up when
+   you are actually close enough to the Core to open it. */
+.termhint{position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(14px + env(safe-area-inset-bottom));z-index:40;pointer-events:none;
+  padding:5px 13px;border-radius:999px;font-size:12px;letter-spacing:.04em;
+  background:rgba(10,14,26,.82);border:1px solid var(--line);color:#8d96bd;
+  transition:color .18s,border-color .18s,box-shadow .18s}
+.termhint.ready{color:#ffc247;border-color:rgba(255,194,71,.55);
+  box-shadow:0 0 14px rgba(255,194,71,.22)}
+.termhint.hide{display:none}
+.ocpip{margin-left:6px;font-size:10px;letter-spacing:.05em;color:#ff9d3d;
+  border:1px solid rgba(255,157,61,.5);border-radius:3px;padding:1px 5px}

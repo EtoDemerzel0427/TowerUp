@@ -138,10 +138,23 @@
       <button class="play" id="bNextStage">传送至下一区域</button>
     </div>
   </div>
+  <div class="ovl hide" id="ovlTerm">
+    <div class="panelbox telebox">
+      <div class="telehead">
+        <span class="lvup">CORE TERMINAL</span>
+        <h2>核心终端</h2>
+        <p>波次间隙可在核心旁接入。永久升级不随区域重置。</p>
+      </div>
+      <div class="pick-h">核心永久升级 · 碎片 <b id="termScrap">0</b></div>
+      <div class="upgrid" id="termGrid"></div>
+      <button class="play" id="bTermClose">断开连接 <small>ESC</small></button>
+    </div>
+  </div>
   <div class="ovl hide" id="ovlEnd"><div class="panelbox" id="endBox"></div></div>
   <div class="ovl hide" id="ovlHelp"><div class="panelbox helpbox" id="helpBox"></div></div>
   <div class="ovl hide" id="ovlTutDone"><div class="panelbox" id="tutDoneBox"></div></div>
 </div>
+<div class="termhint hide" id="termHint"></div>
 <div class="rotate" id="rotate">
   <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
     <rect x="14" y="6" width="36" height="52" rx="5" stroke="#35e6ff" stroke-width="2.4"/>

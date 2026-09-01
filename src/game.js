@@ -88,6 +88,7 @@ function tstat(t,noBuff){
     for(const k in e){ if(k==='n'||k==='c'||k==='d')continue;
       if(MULT_KEYS.includes(k))o[k]*=e[k]; else o[k]=e[k]; }
   }
+  if(t.oc){ o.dmg*=1+OC_DMG*t.oc; o.rate*=1+OC_RATE*t.oc; }
   if(!noBuff){
     o.dmg*=1+(t.bDmg||0)+S.st.twrDmg; o.rate*=1+(t.bRate||0)+S.st.twrRate; o.range*=1+(t.bRange||0);
     if(S.overT>0)o.rate*=2.5;
@@ -154,6 +155,8 @@ function recalcPower(){ /* legacy hook: build pressure is a price now, not a cap
 const upgradeCost=t=>t.lvl<4?Math.round(t.def.up[t.lvl-1]*S.st.cost):null;
 const eliteCost=(t,i)=>Math.round(t.def.elites[i].c*S.st.cost);
 const sellValue=t=>Math.floor(t.spent*.7);
+const canOverclock=t=>t.lvl>=4&&t.elite!=null&&(t.oc||0)<OC_MAX;
+const overclockCost=t=>Math.round(OC_BASE*Math.pow(OC_MUL,t.oc||0)*S.st.cost);
 
 /* ---------- build / upgrade / sell ---------- */
 const towerUnlocked=key=>S.stage>=(TOWERS[key].unlock||0);
@@ -169,7 +172,7 @@ function placeTower(key,c,r){
   const d=TOWERS[key];
   const t={key,def:d,col:c,row:r,x:(c+.5)*TILE,y:(r+.5)*TILE,lvl:1,elite:null,
     cool:0,target:null,mode:key==='sniper'?'strong':'core',spent:cost,kills:0,dealt:0,
-    recoil:0,riseT:0,bDmg:0,bRate:0,bRange:0,scrapB:0,flameT:0,
+    recoil:0,riseT:0,bDmg:0,bRate:0,bRange:0,scrapB:0,flameT:0,oc:0,
     hp:TOWER_HP[0],maxHp:TOWER_HP[0],flash:0};
   S.scrap-=cost; S.towers.push(t); World.addTower(t); recalcBuffs(); recalcPower();
   sfx('place'); shock(t.x,t.y,.3,1.4,d.c,.5); t.riseT=.45;
@@ -187,6 +190,16 @@ function upgradeTower(t){
   shock(t.x,t.y,.35,1.6,t.def.c,.55);
   for(let i=0;i<22;i++)part(t.x,t.y,.5,t.def.c,{sp:rnd(6,2)});
   text(t.x,t.y,1.3,'LV '+t.lvl,t.def.c,15); UI.sync();
+}
+function overclockTower(t){
+  if(!canOverclock(t)){ sfx('err'); toast('需要 LV4 且已选精英分支','#8d96bd'); return; }
+  const c=overclockCost(t);
+  if(S.scrap<c){sfx('err');toast('碎片不足 · 超频需要 '+c,'#ff4d5e');return;}
+  S.scrap-=c; t.spent+=c; t.oc=(t.oc||0)+1;
+  World.refreshTower(t); recalcBuffs(); recalcPower(); sfx('up');
+  shock(t.x,t.y,.3,1.8,'#ff9d3d',.6);
+  for(const i of [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17])part(t.x,t.y,.45,'#ff9d3d',{sp:rnd(7,2)});
+  text(t.x,t.y,1.3,'\u8d85\u9891 \u00d7'+t.oc,'#ff9d3d',15); UI.sync();
 }
 function eliteTower(t,idx){
   const c=eliteCost(t,idx);
@@ -211,7 +224,7 @@ function swapTower(t,key){
   const dnew=TOWERS[key], c=t.col, r=t.row;
   S.scrap-=cost;
   World.removeTower(t);
-  t.key=key; t.def=dnew; t.lvl=1; t.elite=null; t.spent=cost;
+  t.key=key; t.def=dnew; t.lvl=1; t.elite=null; t.oc=0; t.spent=cost;
   t.mode=key==='sniper'?'strong':'core';
   t.maxHp=TOWER_HP[0]; t.hp=t.maxHp; t.cool=0; t.target=null;
   t.bDmg=0; t.bRate=0; t.bRange=0; t.scrapB=0; t.flameT=0; t.recoil=0; t.riseT=.45;
