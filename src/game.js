@@ -641,7 +641,7 @@ function enemyTarget(e){
     return core;
   }
   if(e.ai==='blink'&&P&&P.alive)return P;                     // phase: teleports onto you
-  if(e.ai==='breaker'){                                       // bulwark: dismantles your defences
+  if(e.ai==='breaker'&&!e.purged){                            // bulwark: dismantles your defences
     let best=null,bv=(9*TILE)**2;
     for(const t of S.towers){ const dd=dist2(e.x,e.y,t.x,t.y); if(dd<bv){bv=dd;best=t;} }
     if(best)return {x:best.x,y:best.y,isTower:true,tower:best,r:TILE*.42};
@@ -817,14 +817,61 @@ function updateEnemy(e,dt){
     // swats the swing away -- you had your window to interrupt it
     if(e.windT>.42){ e.windT=0; e.windCd=rnd(4,2.4);
       text(e.x,e.y,1.3+e.r/TILE,'打断!','#9fe8ff',14); sfx('pick',.5,1.4); }
+    if(e.chgWind>0){ e.chgWind=0; e.chgCd=rnd(4,2.4);
+      text(e.x,e.y,1.3+e.r/TILE,'打断!','#9fe8ff',14); sfx('pick',.5,1.4); }
     return; }         // interrupted: it cannot advance or swing
+
+  /* Shield charge: a braced run at you that closes ground a walking heavy never
+     could. Telegraphed, so a dash beats it, and a stagger during the wind-up
+     cancels it outright. */
+  const CH=e.def.charge;
+  // affixes with their own movement gimmick keep theirs; everything else can charge
+  const CAN_CHARGE=CH&&!(e.windT>0)&&!['hunter','blink','bomber','coward','commander'].includes(e.ai||'');
+  if(CAN_CHARGE){
+    if(e.chgT>0){
+      e.chgT-=dt; e.curSp=0;
+      const step=CH.sp*TILE*dt;
+      e.x+=Math.cos(e.chgA)*step; e.y+=Math.sin(e.chgA)*step;
+      if(!e.fly){ resolveObstacles(e,e.r/TILE); resolveTowers(e,e.r/TILE); }
+      if(Math.random()<dt*30)part(e.x,e.y,.5,'#8ef0e4',{sp:rnd(1.4,.3),life:.28,r:.09,g:0});
+      const Pc=S.P, RR=e.r+PLAYER.r*TILE+TILE*.35;
+      if(Pc&&Pc.alive&&dist2(e.x,e.y,Pc.x,Pc.y)<RR*RR){
+        hurtPlayer(e.def.atk*(1+S.wave*.05)*(e.atkMul||1)*CH.dmg,e);
+        shock(e.x,e.y,.4,2.2,'#8ef0e4',.55); shake(.2); sfx('boom',.6,1.2);
+        e.chgT=0; e.chgCd=rnd(CH.cd[1],CH.cd[0]); e.recoilT=.35;
+      }
+      if(e.chgT<=0&&e.chgCd<=0)e.chgCd=rnd(CH.cd[1],CH.cd[0]);
+      return;
+    }
+    if(e.chgWind>0){
+      e.chgWind-=dt; e.curSp=0;
+      if(Math.random()<dt*20)part(e.x,e.y,.6,'#4ad2c4',{sp:rnd(1.1,.2),el:1,life:.3,r:.08,g:-1});
+      if(e.chgWind<=0){
+        const Pc=S.P;
+        e.chgA=Pc&&Pc.alive?Math.atan2(Pc.y-e.y,Pc.x-e.x):e.face;
+        e.chgT=CH.time; shock(e.x,e.y,.35,1.8,'#8ef0e4',.5); sfx('dash',.6,.8);
+      }
+      return;
+    }
+    if(e.chgCd===undefined)e.chgCd=rnd(1.8,.7);   // it should get one off before it dies
+    e.chgCd-=dt;
+    const Pc=S.P;
+    if(e.chgCd<=0&&Pc&&Pc.alive){
+      const dp=Math.hypot(Pc.x-e.x,Pc.y-e.y)/TILE;
+      if(dp>CH.range[0]&&dp<CH.range[1]){
+        e.chgWind=CH.windup;
+        text(e.x,e.y,1.4+e.r/TILE,'举盾!','#8ef0e4',14);
+        shock(e.x,e.y,.35,1.1,'#4ad2c4',.4);
+      } else e.chgCd=.4;
+    }
+  }
 
   /* bulwark's telegraphed heavy strike. The affix has always been described as
      "用蓄力重击破甲", but nothing implemented it -- a breaker just walked to a
      turret and poked it, which is why a 2.2x-health elite read as harmless. It
      now plants itself, winds up visibly, and lands a strike that ignores your
      damage reduction. Stagger it during the wind-up and the swing is wasted. */
-  if(e.ai==='breaker'){
+  if(e.ai==='breaker'&&!e.purged){
     if(e.windT>0){
       e.windT-=dt; e.curSp=0;
       if(Math.random()<dt*24)part(e.x,e.y,.6,'#8fa4d8',{sp:rnd(1.7,.4),el:1,life:.35,r:.1,g:-1});
@@ -1275,10 +1322,11 @@ function updatePlayer(dt){
   if(!targetValid(P.lock))P.lock=null;
 
   // the right stick aims absolutely and pulls the trigger while held
-  if(T.on&&T.aim.act){
+  // Only an actually-deflected stick takes over; a thumb resting on the right half
+  // used to drop the lock and leave you aiming at nothing.
+  if(T.on&&T.aim.act&&T.aim.m>.05){
     P.lock=null;
-    // a thumb sitting still at the stick origin holds your heading instead of snapping
-    if(T.aim.m>.05)P.aim=norm(P.aim+norm(T.aim.a-P.aim)*Math.min(1,dt*16));
+    P.aim=norm(P.aim+norm(T.aim.a-P.aim)*Math.min(1,dt*16));
     P.fine=false;
   } else if(KM.fine){
     // free aim: hold to steer the barrel by hand (for lining up a specific spot)
@@ -1290,6 +1338,10 @@ function updatePlayer(dt){
     } else P.turnHold=0;
   } else {
     if(!P.lock)P.lock=bestTarget();
+    // Scenery and rifts are valid targets, but once the barrel latched onto a crate
+    // it stayed there for as long as the crate was in range -- enemies could swarm
+    // you while you auto-fired into a box. Anything living outranks the furniture.
+    else if(P.lock.k!=='enemy'){ const b=bestTarget(); if(b&&b.k==='enemy')P.lock=b; }
     if(turn!==0&&P.cycleLatch<=0){
       const nx=cycleTarget(P.lock,turn);
       if(nx){ P.lock=nx; P.cycleLatch=.2; sfx('pick',.35,1.25); }
@@ -1307,7 +1359,14 @@ function updatePlayer(dt){
   }
   P.fine=KM.fine;
 
-  const aiming=KM.fire||(T.on&&T.aim.act&&T.aim.m>.35);
+  /* Two thumbs cannot steer, aim and ration heat at the same time. The barrel
+     already tracks the best target by itself, so on touch it pulls its own trigger
+     as well: the left stick is movement, the right stick is an optional override.
+     It stops short of overheating so the charge shot is always available. */
+  const autoFire = T.on && S.autoFire!==false && !P.charging &&
+                   P.lock && targetValid(P.lock) && P.lock.k==='enemy' &&
+                   P.heat < st.heatMax*.82 && P.overheat<=0;
+  const aiming=KM.fire||(T.on&&T.aim.act&&T.aim.m>.35)||autoFire;
   if(KM.dash&&!P.dashLatch)dash();
   P.dashLatch=KM.dash;
   P.aiming=aiming;
@@ -1627,7 +1686,12 @@ function updateShots(dt){
     const step=b.sp*dt; b.d+=step; b.x+=b.dx*step; b.y+=b.dy*step;
     if(Math.random()<dt*20)part(b.x,b.y,b.z,b.color,{sp:.3,life:.2,r:.07,g:0});
     const P=S.P;
-    if(P.alive&&dist2(b.x,b.y,P.x,P.y)<(TILE*(P.r+.22))**2){ hurtPlayer(b.dmg,null); impactFx(b.x,b.y,b.z,Math.atan2(b.dy,b.dx),b.color,7); done=true; }
+    if(P.alive&&dist2(b.x,b.y,P.x,P.y)<(TILE*(P.r+.22))**2){
+      // No enemy shell may ever take more than a bite: a jug's siege round was
+      // doing 73 of your 120 health at wave 5 -- two hits and you were gone, from
+      // 9.5 tiles away. Whatever the tuning says, three hits is the floor.
+      hurtPlayer(Math.min(b.dmg,S.st.maxHp*.38),null);
+      impactFx(b.x,b.y,b.z,Math.atan2(b.dy,b.dx),b.color,7); done=true; }
     else if(dist2(b.x,b.y,CX,CY)<(CORE.r*TILE)**2){ damageCore(b.dmg,null); done=true; }
     else if(b.d>b.maxD)done=true;
     if(!done)for(const t of S.towers){
@@ -1956,7 +2020,7 @@ function updateSalvage(dt){
    end on. Once the spawns are done and nothing has died for a while, the survivors
    start burning out: healing stops, armour rots away, and they are forced forward.
    Either you kill them or they reach the Core. Both are endings; a stall is not. */
-const PURGE_IDLE=11, PURGE_ARMOR=2.4;
+const PURGE_IDLE=9, PURGE_ARMOR=3.0;
 function updatePurge(dt){
   if(riftsPending()){ S.purge=0; return; }
   const live=S.enemies.filter(e=>e.alive);
@@ -1976,6 +2040,15 @@ function updatePurge(dt){
     e.regenPct=0; e.regenT=9;
     if(e.maxShield>0){ e.maxShield=Math.max(0,e.maxShield-e.maxShield*.5*dt); e.shield=Math.min(e.shield,e.maxShield); }
     if(e.armor>0)e.armor=Math.max(0,e.armor-PURGE_ARMOR*dt);
+    // Backstop. Stripping armour and forcing them forward covers every case we
+    // found, but 'covers every case we found' is not the same as 'terminates'.
+    // Past 18s of attrition they start burning out for real, so the wave ends
+    // whatever novel way the AI has found to avoid both dying and advancing.
+    if(S.purge>12){
+      const burn=e.maxHp*.055*dt*Math.min(5,1+(S.purge-12)*.2);
+      e.hp-=burn; e.flash=Math.max(e.flash,.08);
+      if(e.hp<=0)kill(e,null,false);
+    }
     if(Math.random()<dt*5)part(e.x,e.y,.7+e.r/TILE,'#ffc247',{sp:rnd(1.3,.3),el:1,life:.5,r:.09,g:-1});
   }
 }

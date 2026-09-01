@@ -275,7 +275,8 @@ body.touchmode .rail{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:30;
   box-shadow:0 -24px 60px -20px #000}
 body.touchmode .rail.open{transform:none}
 body.touchmode .app{grid-template-columns:1fr;grid-template-rows:1fr}
-body.touchmode .stage{padding:0;height:100vh;height:100dvh}
+body.touchmode .stage{padding:0;height:var(--vph,100dvh)}
+body.touchmode{overflow:hidden;overscroll-behavior:none}
 body.touchmode .sheetclose{display:block;position:fixed;left:50%;transform:translateX(-50%);
   bottom:76vh;z-index:31;padding:7px 22px;background:#0d1120f0;border:1px solid var(--line2);
   border-bottom:none;border-radius:6px 6px 0 0;font-size:12px;letter-spacing:.12em;color:var(--dim)}
@@ -287,8 +288,18 @@ body.touchmode .railbody{overflow-y:auto;-webkit-overflow-scrolling:touch}
 .touchui.hide{display:none}
 .stickzone{position:absolute;left:0;top:0;width:50%;height:100%;pointer-events:auto;touch-action:none}
 .stickzone.right{left:50%}
-.tbtns{position:absolute;right:12px;bottom:76px;display:flex;flex-direction:column;gap:10px;pointer-events:auto}
-.tbtns.left{right:auto;left:12px;bottom:76px;flex-direction:row;gap:8px}
+.tbtns{position:absolute;right:calc(12px + env(safe-area-inset-right));bottom:calc(76px + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;gap:10px;pointer-events:auto}
+.tbtns.left{right:auto;left:calc(12px + env(safe-area-inset-left));bottom:calc(76px + env(safe-area-inset-bottom));
+  flex-direction:row;gap:8px}
+/* set from JS off visualViewport, because a landscape phone with browser chrome
+   does not reliably match a max-height media query */
+body.shortscreen .tbtns{bottom:calc(10px + env(safe-area-inset-bottom));right:calc(10px + env(safe-area-inset-right))}
+body.shortscreen .tbtns.left{bottom:calc(10px + env(safe-area-inset-bottom));left:calc(10px + env(safe-area-inset-left))}
+body.shortscreen .tbtn{width:58px;height:58px;font-size:12px}
+body.shortscreen .tbtn.small{width:48px;height:48px;font-size:10.5px}
+body.shortscreen .hud-bottom{padding:4px 4px 6px}
+body.shortscreen .minimap{display:none}
 .tbtn{width:74px;height:74px;border-radius:50%;background:#080b17c9;border:1.5px solid var(--line2);
   color:var(--ink);font-size:14px;font-weight:600;letter-spacing:.06em;backdrop-filter:blur(4px);
   touch-action:none;-webkit-user-select:none;user-select:none}
@@ -399,7 +410,7 @@ body.touchmode .railbody{overflow-y:auto;-webkit-overflow-scrolling:touch}
 /* portrait phones: give the arena a usable shape and keep the sticks clear of the HUD */
 @media (max-width:900px) and (orientation:portrait){
   /* the arena fills the phone: a fixed 3/4 box left ~40% of a tall screen black */
-  .board{aspect-ratio:auto;width:100%;height:100vh;height:100dvh;max-height:none}
+  .board{aspect-ratio:auto;width:100%;height:var(--vph,100dvh);max-height:none}
   .tbtns{bottom:14px;right:10px;gap:8px}
   .tbtns.left{bottom:14px;left:10px}
   .hud-bottom{padding:6px 6px 96px}
@@ -407,7 +418,7 @@ body.touchmode .railbody{overflow-y:auto;-webkit-overflow-scrolling:touch}
   .minimap{display:none}
 }
 @media (orientation:landscape) and (max-height:560px){
-  .board{aspect-ratio:auto;width:100%;height:100vh;height:100dvh;max-height:none}
+  .board{aspect-ratio:auto;width:100%;height:var(--vph,100dvh);max-height:none}
   .tbtns{bottom:10px} .tbtns.left{bottom:10px}
   .hud-bottom{padding:6px 6px 8px}
 }

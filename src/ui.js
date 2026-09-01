@@ -699,6 +699,30 @@ function isTouch(){
 /* Full stick deflection has to be a real thumb travel, not a board-space constant:
    VW is always 1200 regardless of screen width, so the old fixed 56 meant the aim
    stick hit full tilt after ~17 physical pixels on a phone -- unusable. */
+/* iOS Safari keeps its address bar and tab strip on screen in landscape, and 100vh
+   is measured as if that chrome were hidden -- so the bottom row of touch buttons
+   ended up below the visible area. 100dvh is closer but still lies while the bars
+   are animating. visualViewport is the only thing that reports what the player can
+   actually see, so publish it as --vph and lay the board out against that. */
+function syncViewport(){
+  const vv=window.visualViewport;
+  const hpx=Math.round(vv?vv.height:innerHeight);
+  const wpx=Math.round(vv?vv.width:innerWidth);
+  const r=document.documentElement.style;
+  r.setProperty('--vph',hpx+'px');
+  r.setProperty('--vpw',wpx+'px');
+  document.body.classList.toggle('shortscreen',hpx<560);
+  if(S.touch.on)S.touch.r=stickRadius();
+}
+function bindViewport(){
+  syncViewport();
+  const vv=window.visualViewport;
+  if(vv){ vv.addEventListener('resize',syncViewport); vv.addEventListener('scroll',syncViewport); }
+  addEventListener('resize',syncViewport);
+  addEventListener('orientationchange',()=>{ syncViewport(); setTimeout(syncViewport,160); setTimeout(syncViewport,520); });
+  // Safari only settles its chrome a beat after load
+  setTimeout(syncViewport,300); setTimeout(syncViewport,900);
+}
 function stickRadius(){
   const b=document.getElementById('board').getBoundingClientRect();
   if(!b.width)return 56;
@@ -746,6 +770,7 @@ function bindTouch(){
     b.addEventListener('pointerup',e=>{e.preventDefault();if(up)up();});
     b.addEventListener('pointercancel',e=>{if(up)up();});
   };
+  toast('自动瞄准已开启 · 左摇杆走位，右摇杆可手动修正','#35e6ff');
   hold('tDash',()=>dash());
   hold('tCharge',()=>{S.touch.charge=true;},()=>{S.touch.charge=false;});
   hold('tUlt',()=>{ S.keys['q']=true; setTimeout(()=>{S.keys['q']=false;},60); });
@@ -818,6 +843,7 @@ function bindInput(){
   addEventListener('keyup',ev=>{ S.keys[ev.key.toLowerCase()]=false; });
   addEventListener('blur',()=>{ S.keys={}; if(S.P)S.P.charging=false; });
   bindTouch();
+  bindViewport();
   el.bNext.onclick=()=>{ac();callEarly();};
   el.bSpeed.onclick=cycleSpeed;
   el.bPause.onclick=togglePause;

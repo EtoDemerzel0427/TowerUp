@@ -181,15 +181,19 @@ const ENEMIES={
  flyer:{name:'浮空体',hp:80,sp:3.0,armor:0,xp:8,scrap:4,r:11,c:'#5fd0ff',fly:true,poiseFrac:.60,breakStun:.70,breakAggro:11.5,poise:.9,recoil:.30,shot:{dmg:13,rate:2.6,range:6.0,sp:17,style:'bolt',n:1},aim:'core',atk:12,atkRate:1.1,atkR:.6},
  shooter:{name:'腐蚀射手',hp:70,sp:1.9,armor:2,xp:9,scrap:4,r:11,c:'#e07be0',poiseFrac:.55,breakStun:.80,breakAggro:11.5,poise:.9,siege:3.0,sap:0.22,aim:'both',
    ranged:true,atk:14,atkRate:1.6,atkR:6.5,keepAway:5.2},
- shield:{name:'盾卫',hp:130,shield:140,sp:1.9,armor:5,xp:12,scrap:6,r:13,c:'#4ad2c4',poiseFrac:.52,breakStun:1.10,breakAggro:10.3,poise:2.2,siege:2.2,sap:0.28,aim:'core',atk:18,atkRate:1.2,atkR:.65},
+ /* the only heavy with no ranged answer at all: at 1.9 tiles/s against a 7.4 player
+    it could never land a hit, so it read as a free kill. It gets a telegraphed
+    shield charge instead of a gun -- dodgeable, but it closes the gap. */
+ shield:{name:'盾卫',hp:130,shield:140,sp:1.9,armor:5,xp:12,scrap:6,r:13,c:'#4ad2c4',poiseFrac:.52,breakStun:1.10,breakAggro:10.3,poise:2.2,siege:2.2,sap:0.28,aim:'core',atk:18,atkRate:1.2,atkR:.65,
+   charge:{windup:.55,sp:9,time:.7,dmg:1.6,cd:[4.5,8],range:[2.4,9]}},
  healer:{name:'亵渎祭司',hp:150,sp:1.8,armor:3,xp:16,scrap:7,r:12,c:'#7ef0a8',poiseFrac:.55,breakStun:.90,breakAggro:11.5,poise:1.2,aim:'core',
    heal:22,healR:3.2,atk:6,atkRate:1.4,atkR:.6,keepAway:3.4},
  splitter:{name:'裂变体',hp:170,sp:2.0,armor:2,xp:12,scrap:6,r:14,c:'#ff9f45',poiseFrac:.65,breakStun:.95,breakAggro:10.3,poise:1.4,recoil:.25,shot:{dmg:18,rate:3.4,range:5.5,sp:11,style:'lob',n:2},siege:2.0,sap:0.2,aim:'core',
    split:['spawn','spawn','spawn'],atk:14,atkRate:1.1,atkR:.65},
  spawn:{name:'裂片',hp:46,sp:3.4,armor:0,xp:2,scrap:1,r:8,c:'#ffbe7a',poiseFrac:.50,breakStun:.55,breakAggro:10.3,poise:.5,recoil:.35,aim:'both',atk:6,atkRate:.8,atkR:.45},
- jug:{name:'攻城巨兽',scale:1.2,hp:1000,sp:1.15,armor:26,xp:34,scrap:19,r:19,c:'#6f7aa8',poiseFrac:.17,breakStun:1.80,breakAggro:11.5,poise:9,siege:3.2,sap:1.0,shot:{dmg:58,rate:3.8,range:9.5,sp:10,style:'siege',n:1},aim:'core',
+ jug:{name:'攻城巨兽',scale:1.2,hp:1000,sp:1.15,armor:26,xp:34,scrap:19,r:19,c:'#6f7aa8',poiseFrac:.17,breakStun:1.80,breakAggro:11.5,poise:9,siege:3.2,sap:1.0,shot:{dmg:34,rate:3.8,range:9.5,sp:10,style:'siege',n:1},aim:'core',
    noStun:true,atk:70,atkRate:2.0,atkR:.95},
- boss:{name:'深渊领主',scale:1.5,hp:4400,sp:1.25,armor:22,xp:150,scrap:135,r:26,c:'#ff3d8a',poiseFrac:.085,breakStun:1.50,breakAggro:9.2,poise:22,shot:{dmg:42,rate:2.4,range:11,sp:15,style:'volley',n:3},aim:'both',
+ boss:{name:'深渊领主',scale:1.5,hp:4400,sp:1.25,armor:22,xp:150,scrap:135,r:26,c:'#ff3d8a',poiseFrac:.085,breakStun:1.50,breakAggro:9.2,poise:22,shot:{dmg:27,rate:2.4,range:11,sp:15,style:'volley',n:3},aim:'both',
    noStun:true,slowRes:.6,boss:true,aura:1.25,auraR:4,atk:95,atkRate:1.6,atkR:1.3},
 };
 
@@ -242,7 +246,10 @@ function waveComp(w,wis,wlen,stage){
   if(wis===undefined){ wis=((w-1)%5)+1; wlen=5; stage=Math.floor((w-1)/5); }
   const out=[]; const add=(t,n,g,d=0,o)=>out.push(Object.assign({t,n,g,d},o||{}));
   const isBoss = wis>=wlen;
-  const isMini = wlen>=3 && wis===wlen-1;
+  // Region one is five waves long, so a named heavy at wave 4 and the region boss
+  // at wave 5 put two heavies back to back in the tutorial region -- half of all
+  // measured runs ended right there. The champion joins from region two on.
+  const isMini = wlen>=3 && wis===wlen-1 && stage>=1;
   if(isMini)add('__miniboss',1,0,2.5);          // the named heavy, one wave before the boss
   const el=eliteCount(w);
   if(el)add('__elite',el,2.2,3.5);
@@ -255,9 +262,12 @@ function waveComp(w,wis,wlen,stage){
     if(w>=15)add('flyer',4+Math.floor(w/6),.5,3);
     return out;
   }
-  add('grunt',Math.min(40,5+w*1.9|0),Math.max(.16,.55-w*.014));
-  if(w>=2)add('runner',Math.min(24,1+w*1.0|0),Math.max(.16,.45-w*.012),1.5);
-  if(w>=3)add('swarm',Math.min(46,4+w*2.0|0),Math.max(.08,.22-w*.006),2.5);
+  /* Region one ends on 23 units; region two used to open on 43 -- a doubling that
+     lands the wave after a teleport refunds and removes every turret you own.
+     Ramp the trash counts more gently through the early regions. */
+  add('grunt',Math.min(40,5+w*1.5|0),Math.max(.16,.55-w*.014));
+  if(w>=2)add('runner',Math.min(24,1+w*.8|0),Math.max(.16,.45-w*.012),1.5);
+  if(w>=3)add('swarm',Math.min(46,3+w*1.55|0),Math.max(.08,.22-w*.006),2.5);
   if(w>=5)add('flyer',Math.min(20,1+(w-4)*.9|0),Math.max(.22,.5-w*.012),3.2);
   if(w>=6)add('shooter',Math.min(14,1+(w-5)*.6|0),.9,4.5);
   if(w>=7)add('brute',Math.min(16,1+(w-6)*.6|0),1.0,2.0);
@@ -270,7 +280,10 @@ function waveComp(w,wis,wlen,stage){
 const RIFT={hp:250,hpPerWave:.34,r:1.15,scrap:150,xp:110};
 const SALVAGE={amount:80,time:2.9,r:1.5};
 const LINK_R=3.3;
-function hpScale(w){return (1+.105*(w-1))*Math.pow(1.035,Math.max(0,w-10));}
+/* Measured over region 1-3: enemy health climbed 151% while the player's own gun
+   climbed 12%, and the extra exponential term switched on at wave 10 -- exactly
+   where region two ends. That is where runs were dying. Start it later. */
+function hpScale(w){return (1+.105*(w-1))*Math.pow(1.035,Math.max(0,w-14));}
 function spScale(w){return Math.min(1.45,1+.008*Math.max(0,w-4));}
 
 /* ---------- level-up cards ---------- */
@@ -301,8 +314,8 @@ function xpForLevel(l){ return Math.round(40*Math.pow(l,1.42)+40); }
 // Levelling stays frequent so the XP bar keeps paying out, but the *choice* is rarer:
 // a card on the first three levels (you build an identity in region 1), then every
 // other level. The levels in between hand out a flat stat bump instead.
-function levelGivesCard(l){ return l<=4 || l%2===0; }
-const LEVEL_BONUS={hp:.08, dmg:.06};
+function levelGivesCard(l){ return l<=6 || l%2===0; }
+const LEVEL_BONUS={hp:.08, dmg:.10};
 
 const ABILITIES=[
  /* Cooldowns used to outlast a whole wave cycle, so a tactical skill was really a

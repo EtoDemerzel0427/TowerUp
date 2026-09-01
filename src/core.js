@@ -13,7 +13,7 @@ const S={
   beams:[], shocks:[], magma:[], obstacles:[],
   queue:[], build:null, sel:null, aim:null, shake:0, flash:0, combo:0, comboT:0,
   kills:0, earned:0, abil:{}, overT:0, sound:true, best:0, layout:'right',
-  lastKill:0, purge:0, armorHint:false,
+  lastKill:0, purge:0, armorHint:false, autoFire:true,
   level:1, xp:0, xpNeed:0, cards:null, pendingCards:0, playerLives:3, pickT:0,
   stage:0, stageWaves:0, stageStartWave:0, coreUp:{}, teleporting:false, retries:0,
   keys:{}, mouse:{x:CX,y:CY-200,down:false,moved:0},
