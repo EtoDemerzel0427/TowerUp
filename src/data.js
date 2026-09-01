@@ -26,6 +26,12 @@ const PLAYER={
   lockTrack:11, assistCone:.26, assistPull:1.9,
   // ultimate: charged by damage dealt, unleashes a steerable annihilation beam
   ultNeed:2400, ultTime:3.6, ultDps:520, ultWidth:1.15, ultRange:16,
+  /* Per-target ceiling on beam damage, as a fraction of max health per second.
+     At 520+ dps the beam did 2200 at wave 3 against a 666-health champion and
+     one-shot the region boss at wave 5 -- every named fight ended the moment the
+     bar filled. Trash still evaporates (their whole bar is under the cap); a
+     boss loses at most 43% to one beam and the rest is your rifle's job. */
+  ultCap:.12,
   pickup:2.6, respawn:5,
   // manual fire: every shot builds heat, overheat locks you out
   heatPerShot:7.8, heatMax:100, heatCool:30, overheatLock:1.4,

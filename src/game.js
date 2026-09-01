@@ -1634,8 +1634,11 @@ function updatePlayer(dt){
     nearEnemies((P.x+ex)/2,(P.y+ey)/2,R,e=>{
       if(!e.alive)return;
       if(ptSegDist(e.x,e.y,P.x,P.y,ex,ey)<halfW+e.r){
-        hurt(e,PLAYER.ultDps*(1+S.wave*.06)*dt,
+        const raw=PLAYER.ultDps*(1+S.wave*.06)*dt, cap=e.maxHp*PLAYER.ultCap*dt;
+        hurt(e,Math.min(raw,cap),
           {fromPlayer:true,pierceArmor:true,noNum:true,ang:P.aim,poiseMul:3});
+        if(cap<raw&&!e.ultCapHint&&(e.boss||e.mini)){ e.ultCapHint=true;
+          text(e.x,e.y,1.6+e.r/TILE,'光束抗性','#ffe89a',13); }
       }
     });
     for(const rf of S.rifts) if(rf.alive&&ptSegDist(rf.x,rf.y,P.x,P.y,ex,ey)<halfW+RIFT.r*TILE)
