@@ -118,8 +118,14 @@ function resolveTowers(e,radius){
 function resolveObstacles(e,radius){
   for(const h of S.hazards){
     if(!HAZARD[h.kind].solid)continue;
-    const R=(h.r+radius)*TILE, dx=e.x-h.x, dy=e.y-h.y, d2=dx*dx+dy*dy;
-    if(d2<R*R&&d2>1e-6){ const d=Math.sqrt(d2), k=(R-d)/d; e.x+=dx*k; e.y+=dy*k; }
+    /* A dash carries you over the pit, so it is an escape route only you can take.
+       Something under heavy knockback also stops being held out of it -- otherwise
+       the push-out ran every frame and cancelled the shove before it ever got in. */
+    if(HAZARD[h.kind].leapable&&(e.dashT>0||e.pitFall>0))continue;
+    const R=(h.r+radius)*TILE; let dx=e.x-h.x, dy=e.y-h.y, d2=dx*dx+dy*dy;
+    // dead centre had no push direction, so anything landing there stayed stuck
+    if(d2<=1e-6){ const a=rnd(TAU); dx=Math.cos(a); dy=Math.sin(a); d2=1; }
+    if(d2<R*R){ const d=Math.sqrt(d2), k=(R-d)/d; e.x+=dx*k; e.y+=dy*k; }
   }
   for(const o of S.obstacles){
     const R=(o.r+radius)*TILE, dx=e.x-o.x, dy=e.y-o.y, d2=dx*dx+dy*dy;

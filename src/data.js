@@ -99,7 +99,10 @@ const PROPS={
 const HAZARD={
  lava:  {r:[1.5,2.6], dps:26,  c:'#ff5a20', name:'岩浆池'},
  ice:   {r:[2.2,3.6], c:'#bfe4ff', name:'冰面'},
- chasm: {r:[1.4,2.4], c:'#6a4aa0', name:'深渊裂口', solid:true},
+ /* A solid disc that did nothing but take up room, and swallowed any loot that
+    landed in it. It now has three uses: you can dash across it, anything knocked
+    into it falls, and drops get nudged back out. */
+ chasm: {r:[1.4,2.4], c:'#6a4aa0', name:'深渊裂口', solid:true, leapable:true, pit:true},
  steam: {r:[1.3,2.0], dmg:34, c:'#cfe6ff', name:'蒸汽喷口', period:4.2, warn:1.0, burst:.55},
  corrupt:{r:[1.8,3.0], dps:11, c:'#b06cff', name:'侵蚀区'},
 };
@@ -167,7 +170,7 @@ const TOWERS={
   desc:'抛射炮弹造成<b>范围爆炸</b>，把敌人<b>轰飞并打断</b>它们的动作，无法打空中。'+
        '推开正在拆塔或围核心的一群人最好用。',
   dmg:[34,52,76,106],rate:[.8,.86,.92,1.0],range:[4.4,4.7,5.0,5.4],splash:[1.3,1.45,1.6,1.8],up:[100,175,300],
-  knock:[5,6,7,9],stun:[.10,.12,.14,.18],
+  knock:[9,11,13,16],stun:[.10,.12,.14,.18],
   elites:[{n:'集束轰炸',c:460,d:'每次发射 3 发散射炮弹',cluster:3,dmg:.62},
           {n:'攻城臼炮',c:500,d:'伤害 ×2.1，爆炸范围 ×1.5，并<b>击晕</b> 0.35 秒',dmg:2.1,splash:1.5,rate:.72,stun:.35}]},
  frost:{name:'霜寒之柱',role:'CONTROL',power:1,unlock:1,shape:[0.95,1.55,0.95],cost:95,c:'#5fd0ff',air:true,hotkey:3,

@@ -647,6 +647,10 @@ function kill(e,src,byPlayer){
    other merge into one worth the sum. */
 const DROP_MERGE=TILE*.9;
 function addDrop(kind,x,y,v){
+  // nudge anything that would land in a pit back to its rim, or it is unreachable
+  const pit=pitAt(x,y);
+  if(pit){ const a=Math.atan2(y-pit.y,x-pit.x)||rnd(TAU), R=pit.r*TILE+TILE*.7;
+    x=pit.x+Math.cos(a)*R; y=pit.y+Math.sin(a)*R; }
   for(const d of S.drops){
     if(d.kind!==kind)continue;
     if(dist2(d.x,d.y,x,y)<DROP_MERGE*DROP_MERGE){ d.v+=v; d.t=0; return; }
@@ -920,9 +924,15 @@ function updateEnemy(e,dt){
   if(e.blinkCd>0)e.blinkCd-=dt;
   // knockback carries over a few frames so hits read as impacts
   if(e.kbx||e.kby){
+    /* A real shove opens a short window during which the pit stops holding this
+       unit out -- gating on the instantaneous knockback instead only lasted about
+       two frames, so the shove was cancelled before it could carry anything in. */
+    if(!e.fly&&Math.hypot(e.kbx,e.kby)>TILE*6)e.pitFall=.4;
+    if(e.pitFall>0)e.pitFall-=dt;
     e.x+=e.kbx*dt; e.y+=e.kby*dt;
+    if(e.pitFall>0&&pitAt(e.x,e.y)){ e.pitFall=0; pitKill(e); return; }
     const damp=Math.min(1,dt*9); e.kbx-=e.kbx*damp; e.kby-=e.kby*damp;
-    if(Math.abs(e.kbx)<1&&Math.abs(e.kby)<1)e.kbx=e.kby=0;
+    if(Math.abs(e.kbx)<1&&Math.abs(e.kby)<1){e.kbx=e.kby=0;}
     if(!e.fly){ resolveObstacles(e,e.r/TILE); resolveTowers(e,e.r/TILE); }
   }
   enemyRangedFire(e,dt);      // a mounted gun keeps working through a flinch
@@ -1151,6 +1161,22 @@ function updateEnemy(e,dt){
 }
 
 /* ---------- destructible scenery ---------- */
+/* is this point inside an open pit? */
+function pitAt(x,y){
+  for(const h of S.hazards){
+    if(!HAZARD[h.kind].pit)continue;
+    if(dist2(x,y,h.x,h.y)<(h.r*TILE)**2)return h;   // crossing the rim is enough
+  }
+  return null;
+}
+function pitKill(e){
+  if(!e.alive)return;
+  text(e.x,e.y,1.4+e.r/TILE,'坠落!','#b06cff',15);
+  for(let i=0;i<14;i++)part(e.x,e.y,.4,'#8a5cd0',{sp:rnd(1.4,.3),el:-.6,life:.5,r:rnd(.13,.06),g:14});
+  shock(e.x,e.y,.2,1.4,'#6a4aa0',.45);
+  sfx('boom',.5,.7);
+  kill(e,null,true);          // credited to you: you put it there
+}
 function damageProp(o,dmg,ang){
   if(o.hp<=0)return;
   o.hp-=dmg; o.flash=.14;
