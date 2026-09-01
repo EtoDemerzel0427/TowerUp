@@ -594,6 +594,13 @@ function saveBest(){ try{localStorage.setItem(bestKey(),String(S.best));}catch(e
 function loadBest(){ try{S.best=+(localStorage.getItem(bestKey())||0);}catch(e){S.best=0;} }
 
 const UI={
+  onTutorialEnd(skipped){
+    for(const t of S.towers)World.removeTower(t); S.towers=[];
+    S.P=newPlayer(); S.st=freshStats();
+    el.ovlStart.classList.remove('hide');
+    buildStart(); UI.sync();
+    toast(skipped?'训练已跳过 · 随时可在开始界面重来':'训练完成 · 进入战场吧','#6ee7a8');
+  },
  sync(){
   el.scrap.textContent=S.scrap;
   el.lives.textContent='◆'.repeat(Math.max(0,S.playerLives))+'◇'.repeat(Math.max(0,S.diff.lives-S.playerLives));
@@ -885,6 +892,7 @@ function bindInput(){
   el.bPause.onclick=togglePause;
   el.bSound.onclick=toggleSound;
   el.bLayout.onclick=toggleLayout;
+  const tb=$('bTut'); if(tb)tb.onclick=()=>{ac();startTutorial();};
   const h1=$('bHelp'); if(h1)h1.onclick=openHelp;
   const h2=$('bHelp2'); if(h2)h2.onclick=toggleHelp;
   const ab=$('bAuto'); if(ab){ ab.onclick=toggleAuto;
@@ -1088,6 +1096,23 @@ function buildStart(){
     el.diffPicks.appendChild(b);
   });
 }
+/* the training run lives in its own sandbox: no waves, no losing, and every step
+   gated on the player actually performing the action */
+function startTutorial(){
+  el.ovlStart.classList.add('hide'); el.ovlEnd.classList.add('hide');
+  el.ovlCards.classList.add('hide'); el.ovlTele.classList.add('hide');
+  closeHelp();
+  S.diff=pickDiff; S.map=MAPS[0];
+  S.obstacles=buildArena(S.map); S.hazards=buildHazards(S.map,S.obstacles);
+  S.stage=0; S.stageWaves=0; S.coreUp={}; applyCoreUpgrades(false);
+  S.core.hp=S.core.maxHp;
+  for(const t of S.towers)World.removeTower(t); S.towers=[];
+  logs.length=0; el.log.innerHTML='';
+  World.buildBoard(); World.addPlayer(); World.updateLinks();
+  selectTower(null); World.setRange(null); World.setGhost(null);
+  Tutor.start();
+  log('新手训练开始 · 共 '+Tutor.steps()+' 步');
+}
 function startGame(){
   ac();
   S.diff=pickDiff;
@@ -1171,8 +1196,8 @@ function boot(){
   el.bPlay.onclick=startGame;
   el.bNextStage.onclick=()=>{ac();nextStage();};
   UI.sync();
-  try{ if(!localStorage.getItem('abyss2_seen_help')){
-    localStorage.setItem('abyss2_seen_help','1'); openHelp(); } }catch(e){}
+  try{ if(!localStorage.getItem('abyss2_tutorial_done')){
+    localStorage.setItem('abyss2_seen_help','1'); startTutorial(); } }catch(e){}
   requestAnimationFrame(loop);
 }
 boot();

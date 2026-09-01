@@ -315,6 +315,30 @@ body.shortscreen .minimap{display:none}
 }
 
 .chip .mul.grow{color:var(--cyan);border-color:var(--cyan)}
+/* ---------- interactive training ---------- */
+.tut{position:absolute;left:50%;transform:translateX(-50%);bottom:20px;z-index:8;
+  width:min(560px,calc(100% - 32px));padding:14px 18px 12px;
+  background:#080d1af2;border:1px solid var(--cyan);border-radius:var(--r);
+  box-shadow:0 20px 60px -20px #000,0 0 40px -22px var(--cyan);backdrop-filter:blur(5px)}
+.tut.hide{display:none}
+.tut-n{font-family:var(--mono);font-size:10px;letter-spacing:.24em;color:var(--dim2)}
+.tut-t{font-size:17px;font-weight:700;letter-spacing:.1em;color:var(--cyan);margin:3px 0 6px}
+.tut-d{font-size:12.5px;line-height:1.75;color:var(--dim)}
+.tut-d u{text-decoration:none;color:var(--ink);font-weight:600}
+.tut-d b{display:inline-block;font-family:var(--mono);font-size:10.5px;color:var(--ink);
+  background:var(--panel2);border:1px solid var(--line2);border-bottom-width:2px;
+  border-radius:3px;padding:1px 5px;margin:0 1px}
+.tut-goal{position:relative;margin-top:10px;height:22px;border-radius:3px;
+  background:#111a30;overflow:hidden;display:flex;align-items:center}
+.tut-goal i{position:absolute;inset:0;width:0;background:linear-gradient(90deg,#1b7f8f,#35e6ff);
+  opacity:.4;transition:width .18s}
+.tut-goal span{position:relative;padding:0 10px;font-size:11px;letter-spacing:.1em;color:var(--ink)}
+.tut-skip{position:absolute;top:10px;right:12px;font-size:10.5px;letter-spacing:.1em;
+  color:var(--dim2);background:none;border:none;text-decoration:underline}
+.tut-skip:hover{color:var(--ink)}
+@media (max-width:760px){ .tut{bottom:auto;top:56px;padding:10px 12px 9px}
+  .tut-t{font-size:14px} .tut-d{font-size:11.5px;line-height:1.6} }
+
 /* ---------- controls guide ---------- */
 .helpbox{width:min(880px,100%)}
 .helphead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:4px}

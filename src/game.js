@@ -36,6 +36,7 @@ function newPlayer(){
     iframe:1.5,moving:false,cool:0,droneAng:0,r:PLAYER.r,
     heat:0,overheat:0,charge:0,charging:false,chgCd:0,flashT:0,kick:0,turnHold:0,aiming:false,
     onIce:false,hazT:0,fine:false,dashLatch:false,coolT:0,rageT:0,shield:0,
+    rageArmed:false,coolArmed:false,magnetArmed:false,
     ult:0,ultT:0,ultLatch:false,magnetT:0,
     lock:null,lockLatch:false,cycleLatch:0};
 }
@@ -1309,9 +1310,13 @@ function updatePlayer(dt){
     return;
   }
   if(P.iframe>0)P.iframe-=dt;
-  if(P.coolT>0)P.coolT-=bt;
-  if(P.rageT>0)P.rageT-=bt;
-  if(P.magnetT>0)P.magnetT-=bt;
+  /* A pickup's clock starts on your next shot and then simply runs. This replaces
+     the earlier out-of-combat freeze for these three: "starts when you next pull
+     the trigger" is one rule the player can actually predict, instead of a timer
+     that stops and starts with whatever is alive on the field. */
+  if(P.coolT>0&&!P.coolArmed)P.coolT-=dt;
+  if(P.rageT>0&&!P.rageArmed)P.rageT-=dt;
+  if(P.magnetT>0&&!P.magnetArmed)P.magnetT-=dt;
   if(st.regen)healPlayer(st.regen*dt);
   // standing in a hazard costs you
   const hz=hazardAt(P.x,P.y);
@@ -1529,8 +1534,16 @@ function updatePlayer(dt){
     }
   }
 }
+/* the first shot after a pickup starts its clock */
+function armBuffs(){
+  const P=S.P;
+  if(P.rageArmed){ P.rageArmed=false; toast('狂怒剂生效 · 25 秒','#ff5a3d'); }
+  if(P.coolArmed){ P.coolArmed=false; }
+  if(P.magnetArmed){ P.magnetArmed=false; }
+}
 function firePrimary(){
   const P=S.P, st=S.st;
+  armBuffs();
   const n=st.multi, spread=n>1?.14:0;
   const mz=TILE*.62;
   for(let i=0;i<n;i++){
@@ -1553,6 +1566,7 @@ function firePrimary(){
 function releaseCharge(){
   const P=S.P, st=S.st;
   if(!P.charging)return;
+  armBuffs();
   P.charging=false;
   const c=P.charge; P.charge=0;
   if(c<.16||P.overheat>0||P.chgCd>0)return;
@@ -1847,8 +1861,8 @@ function takePickup(p){
   const D=PICKUPS[p.kind], st=S.st, P=S.P;
   switch(p.kind){
     case 'medkit': healPlayer(70); text(P.x,P.y,1.6,'+70','#6ee7a8',16); break;
-    case 'coolant': P.heat=0; P.overheat=0; P.coolT=22; break;
-    case 'rage': P.rageT=25; break;
+    case 'coolant': P.heat=0; P.overheat=0; P.coolT=22; P.coolArmed=true; break;
+    case 'rage': P.rageT=25; P.rageArmed=true; break;
     case 'shield': P.shield=260; break;
     case 'stasis':
       for(const e of S.enemies){ if(!e.alive)continue; applyStun(e,6.5); applySlow(e,.5,9);
@@ -1856,7 +1870,7 @@ function takePickup(p){
       S.flash=Math.max(S.flash,.2); break;
     case 'magnet':
       for(const d of S.drops){ d.x=P.x+rnd(TILE,-TILE); d.y=P.y+rnd(TILE,-TILE); }
-      P.magnetT=20; break;
+      P.magnetT=20; P.magnetArmed=true; break;
     case 'mend':
       S.core.hp=Math.min(S.core.maxHp,S.core.hp+S.core.maxHp*.14);
       shock(CX,CY,.5,4,'#2f6bff',.7); break;
@@ -2344,6 +2358,7 @@ function fireAbility(a,x,y){
 /* ---------- main loop ---------- */
 function sim(dt){
   S.time+=dt;
+  if(typeof Tutor!=='undefined'&&Tutor.active)Tutor.update(dt);
   if(S.overT>0&&inCombat())S.overT-=dt;   // 火力过载 holds until there is something to shoot
   if(S.comboT>0){S.comboT-=dt;if(S.comboT<=0)S.combo=0;}
   for(const id in S.abil) if(S.abil[id].cd>0)S.abil[id].cd=Math.max(0,S.abil[id].cd-dt);
