@@ -331,6 +331,8 @@ function towerFire(t,s){
         S.shots.push({kind:'bolt',x:ox,y:oy,z:oz,tgt:t.target,tx:p.x,ty:p.y,sp:30*TILE,
           dmg:s.dmg,shred:s.shredHit,pen:s.pen,src:t,color:t.def.c,r:.09});
       }
+      // rapid-fire: a thin tracer so the stream of fire is visible, plus sparks
+      beam({x:ox,y:oy,z:oz},{x:t.target.x,y:t.target.y,z:.45},'#c8ffd0',1,.05);
       sfx('arrow',.7,rnd(1.15,.85)); muzzle(ox,oy,oz,t.def.c,4,ang); break;
     }
     case 'cannon':{
@@ -342,12 +344,19 @@ function towerFire(t,s){
           dur:Math.max(.28,Math.hypot(p.x-ox,p.y-oy)/(14*TILE)),
           dmg:s.dmg,splash:s.splash,stun:s.stun,knock:s.knock,src:t,color:t.def.c,r:.13});
       }
+      // heavy artillery: muzzle smoke and a blast ring at the barrel
+      shock(ox,oy,oz,1.1,'#ffb45a',.26,.1);
+      for(let i=0;i<6;i++)part(ox,oy,oz,'#6b5b4a',{sp:rnd(1.6,.4),el:.5,life:.5,r:rnd(.2,.1),g:-1});
       sfx('cannon',.8); muzzle(ox,oy,oz,'#ffb45a',12,ang); shake(.04); break;
     }
     case 'frost':{
       const p=predict(ox,oy,t.target,16*TILE);
       S.shots.push({kind:'orb',x:ox,y:oy,z:oz,tgt:t.target,tx:p.x,ty:p.y,sp:16*TILE,
         dmg:s.dmg,splash:s.splash,slow:s.slow,freeze:s.freeze,src:t,color:t.def.c,r:.12});
+      // frost: a crystalline puff at the barrel so the cold reads before impact
+      shock(ox,oy,oz,.8,'#bfe4ff',.3,.08);
+      for(let i=0;i<5;i++)part(ox,oy,oz,pick(['#bfe4ff','#8ed8ff','#ffffff']),
+        {sp:rnd(1.4,.3),el:.9,life:.5,r:rnd(.11,.05),g:.5});
       sfx('frost',.7,rnd(1.1,.9)); break;
     }
     case 'toxin':{
@@ -368,10 +377,13 @@ function towerFire(t,s){
       for(let i=0;i<=s.chain;i++){
         if(!cur)break;
         hit.add(cur);
-        beam(from,{x:cur.x,y:cur.y,z:.45},'#c9b6ff',2,.13,.16);
+        // arc lightning: two overlaid jagged bolts and a spark ring at every hop
+        beam(from,{x:cur.x,y:cur.y,z:.45},'#e6dcff',4,.11,.26);
+        beam(from,{x:cur.x,y:cur.y,z:.45},'#8b6cff',2,.16,.34);
         hurt(cur,dmg,{src:t});
         if(s.stun)applyStun(cur,s.stun);
-        burstFx(cur.x,cur.y,.5,'#b39dff',4,4,.09);
+        shock(cur.x,cur.y,.45,.9,'#c9b6ff',.22,.09);
+        burstFx(cur.x,cur.y,.5,'#b39dff',8,6,.1);
         from={x:cur.x,y:cur.y,z:.45}; dmg*=s.falloff;
         let nx=null,nv=1e9;
         nearEnemies(cur.x,cur.y,3.2*TILE,e=>{ if(!e.alive||hit.has(e))return;
@@ -393,7 +405,10 @@ function towerFire(t,s){
             hurt(en,s.dmg,{src:t,pierceArmor:true}); burstFx(en.x,en.y,.5,'#fff2b0',6,5,.1); } }
       }else{
         const crit=s.crit&&Math.random()<s.crit;
-        beam({x:ox,y:oy,z:oz},{x:e.x,y:e.y,z:.5},crit?'#fff':'#ffe89a',2,.18);
+        // one long, bright line and a hard crack at the muzzle: unmistakably a sniper
+        beam({x:ox,y:oy,z:oz},{x:e.x,y:e.y,z:.5},'#ffffff',1,.30);
+        beam({x:ox,y:oy,z:oz},{x:e.x,y:e.y,z:.5},crit?'#fff2b0':'#ffe89a',4,.20);
+        shock(ox,oy,oz,1.5,'#ffe89a',.3,.07);
         hurt(e,s.dmg,{src:t,pierceArmor:true,crit});
         if(s.mark)e.markT=4;
         burstFx(e.x,e.y,.5,'#ffe89a',crit?14:7,6,.11);
@@ -429,8 +444,10 @@ function flameTick(t,s,dt){
   if(t.flameT<=0){ t.flameT=.055;
     if(s.ring){ for(let i=0;i<4;i++){const a=rnd(TAU);
       part(t.x+Math.cos(a)*R*.4,t.y+Math.sin(a)*R*.4,.5,'#ff9a3d',{sp:rnd(3,1),el:.4,life:.32,r:.15}); } }
-    else { for(let i=0;i<3;i++){const a=ang+rnd(.42,-.42),d=rnd(R,TILE*.4);
-      part(t.x+Math.cos(a)*d,t.y+Math.sin(a)*d,.5+rnd(.3),'#ff8a2d',{sp:rnd(2.5,.6),el:.5,life:.3,r:.17}); } }
+    else { // fill the actual cone so the shape of the attack is visible
+      for(let i=0;i<7;i++){const a=ang+rnd(s.cone,-s.cone),d=rnd(R,TILE*.4);
+        part(t.x+Math.cos(a)*d,t.y+Math.sin(a)*d,.45+rnd(.4),
+          pick(['#ff8a2d','#ffc247','#ff5a20']),{sp:rnd(2.6,.7),el:.5,life:.34,r:rnd(.2,.1)}); } }
     if(s.magma&&Math.random()<.75&&S.magma.length<22&&t.target)
       S.magma.push({x:t.target.x,y:t.target.y,r:.9,t:0,life:4.5,dps:s.burn*2.2,src:t});
     sfx('flame',.45);
@@ -821,13 +838,19 @@ function updateEnemy(e,dt){
   if(e.markT>0)e.markT-=dt;
   if(e.vulnT>0)e.vulnT-=dt;
   if(e.auraT>0)e.auraT-=dt;
-  if(e.slowT>0){e.slowT-=dt; if(e.slowT<=0)e.slowF=0;}
+  if(e.slowT>0){e.slowT-=dt; if(e.slowT<=0)e.slowF=0;
+    if(Math.random()<dt*10)part(e.x,e.y,.3+rnd(.4),'#bfe4ff',{sp:rnd(.7,.15),el:.7,life:.55,r:rnd(.09,.04),g:.6}); }
+  // armour coming off should look like armour coming off
+  if((e.shred||0)>0&&Math.random()<dt*9)
+    part(e.x,e.y,.45,pick(['#ffd7a0','#cfd8f0']),{sp:rnd(2.2,.7),life:.4,r:rnd(.08,.04),g:7});
   if(e.stun>0)e.stun-=dt;
   if(e.burnT>0){ e.burnT-=dt; hurt(e,e.burnDps*dt,{noNum:true,pierceArmor:true,src:e.burnSrc});
-    if(Math.random()<dt*9)part(e.x,e.y,.4,'#ff8a2d',{sp:rnd(1.4,.3),el:1,life:.42,r:.1,g:-2});
+    if(Math.random()<dt*26)part(e.x,e.y,.35+rnd(.5),pick(['#ff8a2d','#ffc247','#ff5a20']),
+      {sp:rnd(1.6,.4),el:1.3,life:.5,r:rnd(.13,.06),g:-2.6});
     if(e.burnT<=0)e.burnDps=0; }
   if(e.poisonT>0){ e.poisonT-=dt; hurt(e,e.poisonDps*dt,{noNum:true,pierceArmor:true,src:e.poisonSrc});
-    if(Math.random()<dt*7)part(e.x,e.y,.4,'#a6e22e',{sp:rnd(1,.2),el:1,life:.5,r:.09,g:-2});
+    if(Math.random()<dt*20)part(e.x,e.y,.3+rnd(.4),pick(['#a6e22e','#7ec93c','#d4f06a']),
+      {sp:rnd(1.1,.25),el:1,life:.62,r:rnd(.11,.05),g:-1.6});
     if(e.poisonT<=0){e.poisonDps=0;e.poisonPlague=false;} }
   if(!e.alive)return;
   if(e.shieldT>0)e.shieldT-=dt;
@@ -906,7 +929,7 @@ function updateEnemy(e,dt){
   }
   enemyRangedFire(e,dt);      // a mounted gun keeps working through a flinch
   if(e.stun>0){ e.curSp=0;
-    if(Math.random()<dt*6)part(e.x,e.y,.5,'#9fe8ff',{sp:rnd(1,.2),el:1,life:.4,r:.08,g:-1});
+    if(Math.random()<dt*18)part(e.x,e.y,.5+rnd(.3),'#bfeaff',{sp:rnd(1.3,.3),el:1,life:.35,r:rnd(.1,.05),g:-1});
     return; }
   if(e.stagger>0&&!(e.windT>0&&e.windT<=.42)){ e.curSp=0;
     // once it is past the halfway point of the wind-up, chip damage no longer

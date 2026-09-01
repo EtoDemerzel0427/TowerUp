@@ -536,14 +536,20 @@ function frame(dt,now){
     if(!e.fly&&!u.legs)o.position.y=Math.abs(Math.sin(now*Math.max(.4,e.curSp)*3+e.seed))*.05;
     if(e.matEm){
       const f=e.flash>0?e.flash:0, frozen=e.stun>0, chilled=e.slowT>0;
+      // burning and poisoned used to look exactly like healthy: only a couple of
+      // stray particles a second. Colour the unit so the effect is readable at a glance.
+      const burning=e.burnT>0, poisoned=e.poisonT>0, shredded=(e.shred||0)>0;
       const brk=e.breakFlash>0?e.breakFlash/.5:0, stag=e.stagger>0;
       for(const [m,ei,ec] of e.matEm){
-        m.emissiveIntensity=ei+f*4+brk*6+(stag?1.2:0);
+        m.emissiveIntensity=ei+f*4+brk*6+(stag?1.2:0)+(burning?.9:0)+(poisoned?.5:0);
         if(brk>0)m.emissive.setRGB(1,.92,.6);
         else if(stag)m.emissive.setRGB(.9,.75,.35);
         else if(f>0)m.emissive.setRGB(1,1,1);
         else if(frozen)m.emissive.setRGB(.35,.75,1);
+        else if(burning)m.emissive.copy(ec).lerp(new THREE.Color(1,.42,.12),.7);
+        else if(poisoned)m.emissive.copy(ec).lerp(new THREE.Color(.55,.95,.15),.6);
         else if(chilled)m.emissive.copy(ec).lerp(new THREE.Color(.2,.5,.9),.45);
+        else if(shredded)m.emissive.copy(ec).lerp(new THREE.Color(1,.85,.55),.3);
         else m.emissive.copy(ec);
       }
     }
