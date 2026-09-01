@@ -122,7 +122,10 @@ function buildScale(){
   return 1+BUILD_STEP*relief*S.towers.length;
 }
 /* how many emplacements you are allowed to hold at once */
-function towerSlots(){ return TOWER_SLOTS_BASE + S.stage + (S.coreUp.slot||0); }
+function towerSlots(){
+  const st=STAGES[S.stage];
+  return (st&&st.slots!=null?st.slots:TOWER_SLOTS_BASE+S.stage) + (S.coreUp.slot||0);
+}
 function slotsFull(){ return S.towers.length>=towerSlots(); }
 const towerCost=key=>Math.round(TOWERS[key].cost*S.st.cost*buildScale());
 function towerPower(t){ return (t.def.power||1)+(t.lvl>=4?1:0); }
@@ -174,7 +177,33 @@ function eliteTower(t,idx){
   for(let i=0;i<34;i++)part(t.x,t.y,.5,'#ffc247',{sp:rnd(8,2)});
   text(t.x,t.y,1.4,t.def.elites[idx].n,'#ffc247',15); UI.sync();
 }
+/* Selling and rebuilding costs you the slot for a beat and pays the full new
+   price; with emplacements capped you often just want this one to be a different
+   gun. Refit keeps the position and credits the old turret's sale value. */
+function swapCost(t,key){ return Math.max(15, towerCost(key)-sellValue(t)); }
+function swapTower(t,key){
+  if(!t||!TOWERS[key])return false;
+  if(t.key===key){ sfx('err'); toast('已经是'+TOWERS[key].name,'#8d96bd'); return false; }
+  if(!towerUnlocked(key)){ sfx('err'); toast(TOWERS[key].name+' 尚未解锁 · '+unlockText(key),'#8d96bd'); return false; }
+  const cost=swapCost(t,key);
+  if(S.scrap<cost){ sfx('err'); toast('碎片不足 · 改造需要 '+cost,'#ff4d5e'); return false; }
+  const dnew=TOWERS[key], c=t.col, r=t.row;
+  S.scrap-=cost;
+  World.removeTower(t);
+  t.key=key; t.def=dnew; t.lvl=1; t.elite=null; t.spent=cost;
+  t.mode=key==='sniper'?'strong':'core';
+  t.maxHp=TOWER_HP[0]; t.hp=t.maxHp; t.cool=0; t.target=null;
+  t.bDmg=0; t.bRate=0; t.bRange=0; t.scrapB=0; t.flameT=0; t.recoil=0; t.riseT=.45;
+  World.addTower(t); recalcBuffs(); recalcPower(); World.setSel(t);
+  sfx('place'); shock(t.x,t.y,.3,1.8,dnew.c,.55);
+  for(let i=0;i<20;i++)part(t.x,t.y,.4,dnew.c,{sp:rnd(5,2)});
+  text(t.x,t.y,1.3,dnew.name,dnew.c,14);
+  toast('已改造为 '+dnew.name+' · 花费 '+cost+' 碎片',dnew.c);
+  UI.sync(); return true;
+}
+function forgetRefit(t){ if(S.refitT===t)S.refitT=null; }
 function sellTower(t){
+  forgetRefit(t);
   const v=sellValue(t); S.scrap+=v;
   for(let i=0;i<16;i++)part(t.x,t.y,.4,'#ffc247',{sp:rnd(5,1)});
   text(t.x,t.y,1.1,'+'+v,'#ffc247',14);
@@ -199,7 +228,10 @@ function buildHere(){
   const {c,r}=playerTile();
   const existing=towerAt(c,r);
   if(S.build){
-    if(existing){ selectTower(existing); return; }
+    if(existing){
+      if(existing.key!==S.build){ swapTower(existing,S.build); selectTower(existing); }
+      else selectTower(existing);
+      return; }
     if(placeTower(S.build,c,r)){
       // nudge the player clear, then keep the new turret selected so R/T act on it
       const a=S.P.aim+Math.PI;
@@ -230,7 +262,7 @@ function sellHere(){
   if(!t){sfx('err');flashMsg('站到炮塔旁再按 T');return;}
   sellTower(t);
 }
-function selectTower(t){ S.sel=t; World.setSel(t);
+function selectTower(t){ S.sel=t; if(t)S.refitT=t; World.setSel(t);
   if(t){const s=tstat(t);World.setRange(t.x,t.y,s.range,t.def.c);}else if(!S.build)World.setRange(null);
   UI.sync(); }
 
@@ -1141,6 +1173,7 @@ function damageTower(t,dmg,src){
   if(t.hp<=0)destroyTower(t);
 }
 function destroyTower(t){
+  forgetRefit(t);
   t.dead=true;
   burstFx(t.x,t.y,.5,t.def.c,30,8,.18);
   shock(t.x,t.y,.3,2.2,t.def.c,.6); shake(.3); sfx('boom',.8);

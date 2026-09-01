@@ -105,11 +105,14 @@ const HAZARD={
 
 /* ---------- campaign: five regions, then the finale ---------- */
 const STAGES=[
- {map:'ring',    name:'第一区 · 前哨',   waves:5, desc:'金属甲板 · 当心蒸汽喷口'},
- {map:'pillars', name:'第二区 · 废墟',   waves:6, desc:'苔痕断柱 · 深渊裂口阻断地面部队'},
- {map:'open',    name:'第三区 · 冻原',   waves:7, desc:'开阔雪原 · 冰面让所有人打滑'},
- {map:'forge',   name:'第四区 · 熔炉',   waves:7, desc:'玄武岩长墙 · 岩浆池持续灼烧'},
- {map:'gate',    name:'终区 · 终焉之门', waves:5, desc:'虚空裸地 · 深渊主宰在此等待', finale:true},
+ /* slots: how many turrets this region lets you hold at once. Tuned per region
+    rather than a flat +1, because the regions are not equally hard: region one is
+    a five-wave tutorial, region three onwards is where the counts climb. */
+ {map:'ring',    name:'第一区 · 前哨',   waves:5, slots:4, desc:'金属甲板 · 当心蒸汽喷口'},
+ {map:'pillars', name:'第二区 · 废墟',   waves:6, slots:5, desc:'苔痕断柱 · 深渊裂口阻断地面部队'},
+ {map:'open',    name:'第三区 · 冻原',   waves:7, slots:7, desc:'开阔雪原 · 冰面让所有人打滑'},
+ {map:'forge',   name:'第四区 · 熔炉',   waves:7, slots:8, desc:'玄武岩长墙 · 岩浆池持续灼烧'},
+ {map:'gate',    name:'终区 · 终焉之门', waves:5, slots:9, desc:'虚空裸地 · 深渊主宰在此等待', finale:true},
 ];
 /* The original design priced turret spam instead of capping it -- "spamming is
    possible, it is just a bad deal". In practice a well-built line did 70% of all

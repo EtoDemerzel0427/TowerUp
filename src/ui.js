@@ -493,6 +493,16 @@ function renderInspector(){
   const dmgd=t.hp<t.maxHp*.999;
   stats+=row('结构',Math.round(t.hp)+' / '+t.maxHp,t.hp/t.maxHp,'');
 
+  // refit: swap this emplacement to another type, crediting its sale value
+  let refit='<div class="refit"><em>改造为其他型号 · 快捷键 V</em><div class="refitrow">';
+  for(const k of TKEYS){
+    if(k===t.key)continue;
+    const locked=!towerUnlocked(k), c=swapCost(t,k);
+    refit+='<button class="rf" data-rf="'+k+'"'+((locked||S.scrap<c)?' disabled':'')+
+      ' title="'+TOWERS[k].name+(locked?' · '+unlockText(k):' · '+c+' 碎片')+'">'+
+      '<img src="'+ICON[k]+'"><span>'+(locked?'锁':c)+'</span></button>';
+  }
+  refit+='</div></div>';
   const uc=upgradeCost(t);
   let actions='';
   if(dmgd){
@@ -520,7 +530,7 @@ function renderInspector(){
     '<div class="stats">'+stats+'</div>'+
     (d.support?'':'<div class="targeting">'+MODES.map(([m,n])=>
       '<button class="tg'+(t.mode===m?' on':'')+'" data-m="'+m+'">'+n+'</button>').join('')+'</div>')+
-    '<div class="desc">'+d.desc+'</div>'+actions+
+    '<div class="desc">'+d.desc+'</div>'+actions+refit+
     '<button class="btn" id="bClose" style="margin-top:7px;width:100%">返回建造列表</button>';
   const up=$('bUp'); if(up)up.onclick=()=>upgradeTower(t);
   const fx2=$('bFix'); if(fx2)fx2.onclick=()=>{repairTower(t);renderInspector();};
@@ -528,6 +538,8 @@ function renderInspector(){
   $('bClose').onclick=()=>selectTower(null);
   el.secInsp.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>eliteTower(t,+b.dataset.e));
   el.secInsp.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{t.mode=b.dataset.m;renderInspector();});
+  el.secInsp.querySelectorAll('[data-rf]').forEach(b=>b.onclick=()=>{
+    if(swapTower(t,b.dataset.rf)){ selectTower(t); renderInspector(); } });
 }
 const fmt=n=>n>=10000?(n/1000).toFixed(0)+'k':n>=1000?(n/1000).toFixed(1)+'k':Math.round(n);
 
@@ -844,6 +856,7 @@ function bindInput(){
     // with a hard cap on emplacements you spend most of the game upgrading rather
     // than building, so reaching a turret should not mean walking to it
     if(k==='['||k===']'){ cycleTowerSel(k===']'?1:-1); return; }
+    if(k==='v'){ refitSelected(); return; }
     if(k==='g'){ callEarly(); return; }
     if(k==='p'){ togglePause(); return; }
     if(k==='tab'){ cycleSpeed(); return; }
@@ -868,6 +881,15 @@ function bindInput(){
     ab.classList.toggle('on',S.autoFire); ab.textContent=S.autoFire?'⊙':'⊘'; }
 }
 /* step the selection through your turrets so R / T can act on one from anywhere */
+/* 1-8 arms a type, [ ] picks the turret, V refits it -- so changing what an
+   emplacement is does not mean walking over and paying full price again */
+function refitSelected(){
+  const remembered=(S.refitT&&S.towers.includes(S.refitT))?S.refitT:null;
+  const t=S.sel||nearestTower(1.4)||remembered;
+  if(!t){ sfx('err'); toast('先用 [ ] 选中一座炮塔','#8d96bd'); return; }
+  if(!S.build){ sfx('err'); toast('先按 1–8 选择要改造成的型号','#8d96bd'); return; }
+  if(swapTower(t,S.build)){ selectTower(t); renderInspector(); }
+}
 function cycleTowerSel(dir){
   if(!S.towers.length){ sfx('err'); toast('还没有炮塔','#8d96bd'); return; }
   const list=S.towers.slice().sort((a,b)=>(a.row-b.row)||(a.col-b.col));
@@ -875,7 +897,8 @@ function cycleTowerSel(dir){
   const t=list[((i<0?(dir>0?-1:0):i)+dir+list.length)%list.length];
   selectTower(t); sfx('pick',.35,1.2);
   const up=upgradeCost(t);
-  toast(t.def.name+' LV'+t.lvl+(up!=null?' · R 升级需 '+up:' · 已满级'),t.def.c);
+  toast(t.def.name+' LV'+t.lvl+(up!=null?' · R 升级需 '+up:' · 已满级')+
+        (S.build&&S.build!==t.key?' · V 改造为'+TOWERS[S.build].name+' 需 '+swapCost(t,S.build):''),t.def.c);
 }
 function togglePause(){ if(S.cards)return;
   S.paused=!S.paused;el.bPause.textContent=S.paused?'▶':'⏸';el.bPause.classList.toggle('on',S.paused);}
@@ -934,7 +957,8 @@ function renderTips(){
     '<div><b>'+L.fine+'</b> 按住＝自由瞄准 · <b>'+L.charge+'</b> 蓄力重击（无视护甲）</div>'+
     '<div><b>Q</b> 歼灭光束（造成伤害充能，满了可释放）</div>'+
     '<div><b>1–8</b> 选炮塔 · <b>E</b> 就地建造 · <b>R</b> 升级 · <b>T</b> 出售</div>'+
-    '<div><b>[ ]</b> 切换已建炮塔（可隔空升级）· 炮塔有数量上限，靠升级变强</div>'+
+    '<div><b>[ ]</b> 切换已建炮塔 · <b>V</b> 改造为 1–8 选中的型号（保留位置）</div>'+
+    '<div>炮塔<b>有数量上限</b>，每个区域不同 · 靠升级和改造变强，不是靠数量</div>'+
     '<div><b>Z X C</b> 战术技能 · <b>G</b> 提前出击 · <b>Tab</b> 加速 · <b>P</b> 暂停</div>';
 }
 function buildStart(){

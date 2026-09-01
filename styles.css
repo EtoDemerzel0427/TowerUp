@@ -314,6 +314,16 @@ body.shortscreen .minimap{display:none}
   .tbtns{bottom:64px;right:8px} .tbtns.left{bottom:64px;left:8px}
 }
 
+.refit{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.refit em{display:block;font-size:10.5px;letter-spacing:.08em;color:var(--dim2);margin-bottom:6px}
+.refitrow{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.rf{display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 2px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:4px;transition:.14s}
+.rf img{width:26px;height:26px}
+.rf span{font-family:var(--mono);font-size:10px;color:var(--dim)}
+.rf:hover:not(:disabled){border-color:var(--cyan);background:var(--panel3)}
+.rf:disabled{opacity:.35;cursor:not-allowed}
+
 /* ---------- teleport / core upgrades ---------- */
 .telebox{width:min(820px,100%)}
 .telehead{text-align:center;margin-bottom:18px}
