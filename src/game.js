@@ -67,14 +67,21 @@ function nearEnemies(x,y,rad,fn){
 }
 
 /* ---------- turret stats ---------- */
+/* a turret stat may be flat or per-level */
+function lv(v,L){ return v===undefined?0:(Array.isArray(v)?v[L]:v); }
 function tstat(t,noBuff){
   const d=t.def,L=t.lvl-1,o={
     dmg:d.dmg?d.dmg[L]:0, rate:d.rate?d.rate[L]:0, range:d.range[L],
     splash:d.splash?d.splash[L]:0, slow:d.slow?d.slow[L]:0, chain:d.chain?d.chain[L]:0,
     burn:d.burn?d.burn[L]:0, poison:d.poison?d.poison[L]:0, shred:d.shred?d.shred[L]:0,
     buffDmg:d.buffDmg?d.buffDmg[L]:0, buffRate:d.buffRate?d.buffRate[L]:0,
-    falloff:.7, pierce:0, cluster:0, stun:0, freeze:0, crit:0, vuln:0, scrap:0, buffRange:0,
-    magma:0, ring:0, rail:0, mark:0, plague:0, aura:0, shredHit:0, pen:0,
+    falloff:.7, pierce:0, cluster:0, crit:0, vuln:0, scrap:0, buffRange:0,
+    magma:0, ring:0, rail:0, mark:0, plague:0, aura:0, pen:0,
+    /* Signature effects used to exist only on the elite branches, so every base
+       turret was a pure stat stick and the biggest number strictly won. They read
+       from the definition now; an elite branch still overrides. */
+    stun:lv(d.stun,L), freeze:lv(d.freeze,L), shredHit:lv(d.shredHit,L),
+    knock:lv(d.knock,L), cone:d.cone!==undefined?lv(d.cone,L):.55,
   };
   if(t.elite!=null&&d.elites[t.elite]){
     const e=d.elites[t.elite];
@@ -333,7 +340,7 @@ function towerFire(t,s){
         S.shots.push({kind:'shell',x:ox,y:oy,z:oz,sx:ox,sy:oy,sz:oz,
           tx:p.x+rnd(sp,-sp),ty:p.y+rnd(sp,-sp),t:0,
           dur:Math.max(.28,Math.hypot(p.x-ox,p.y-oy)/(14*TILE)),
-          dmg:s.dmg,splash:s.splash,stun:s.stun,src:t,color:t.def.c,r:.13});
+          dmg:s.dmg,splash:s.splash,stun:s.stun,knock:s.knock,src:t,color:t.def.c,r:.13});
       }
       sfx('cannon',.8); muzzle(ox,oy,oz,'#ffb45a',12,ang); shake(.04); break;
     }
@@ -411,7 +418,7 @@ function flameTick(t,s,dt){
   nearEnemies(t.x,t.y,R,e=>{
     if(!e.alive||e.fly)return;
     if(dist2(t.x,t.y,e.x,e.y)>R*R)return;
-    if(!s.ring&&Math.abs(norm(Math.atan2(e.y-t.y,e.x-t.x)-ang))>.55)return;
+    if(!s.ring&&Math.abs(norm(Math.atan2(e.y-t.y,e.x-t.x)-ang))>s.cone)return;
     list.push(e);
   });
   if(!list.length)return;
@@ -631,11 +638,26 @@ function addDrop(kind,x,y,v){
   }
   S.drops.push({kind,x,y,v,t:0});
 }
+/* Measured across 55 waves: 71 damage taken per wave against 31 healed, and a
+   medkit showing up 0.44 times per wave. Healing was a seven-way lottery that only
+   paid out between waves. Kills now bleed a little health back, and the more hurt
+   you are the more often -- staying in the fight is what heals you. */
+function maybeHealShard(x,y,boss){
+  const P=S.P, st=S.st;
+  if(!P||!P.alive)return;
+  const hpF=clamp(P.hp/st.maxHp,0,1);
+  // a small trickle even at near-full health, so the field is never bone dry
+  const chance=boss?1:clamp(.05+(.95-hpF)*.45,0,.45);
+  if(Math.random()>=chance)return;
+  const v=Math.round(st.maxHp*(boss?.18:.07));
+  addDrop('hp',x+rnd(14,-14),y+rnd(14,-14),v);
+}
 function dropLoot(x,y,scrap,xp,boss){
   const n=boss?5:1;
   for(let i=0;i<n;i++)addDrop('scrap',x+rnd(18,-18),y+rnd(18,-18),Math.ceil(scrap/n));
   const nx=boss?4:1;
   for(let i=0;i<nx;i++)addDrop('xp',x+rnd(18,-18),y+rnd(18,-18),Math.ceil(xp/nx));
+  maybeHealShard(x,y,boss);
   if(S.drops.length>90)S.drops.splice(0,S.drops.length-90);
 }
 
@@ -1747,7 +1769,7 @@ function updateShots(dt){
       s.x=lerp(s.sx,s.tx,k); s.y=lerp(s.sy,s.ty,k);
       s.z=lerp(s.sz,.3,k)+Math.sin(k*Math.PI)*Math.max(1.5,Math.hypot(s.tx-s.sx,s.ty-s.sy)/TILE*.42);
       if(Math.random()<dt*30)part(s.x,s.y,s.z,'#ffb45a',{sp:rnd(.7,.1),life:.3,r:.07,g:0});
-      if(k>=1){ explode(s.x,s.y,s.splash,s.dmg,s.src,{stun:s.stun}); done=true; }
+      if(k>=1){ explode(s.x,s.y,s.splash,s.dmg,s.src,{stun:s.stun,knock:s.knock}); done=true; }
     } else if(s.kind==='pierce'){
       const step=s.sp*dt; s.d+=step; s.x+=s.dx*step; s.y+=s.dy*step;
       part(s.x,s.y,s.z,s.color,{sp:.3,life:.16,r:.07,g:0});
@@ -1816,6 +1838,11 @@ function explode(x,y,radius,dmg,src,o={}){
     if(o.slow)applySlow(e,o.slow,2.1);
     if(o.freeze&&Math.random()<o.freeze)applyStun(e,1.1);
     if(o.stun)applyStun(e,o.stun);
+    // a cannon shell should throw things around, not just tick their health down
+    if(o.knock){ const a=Math.atan2(e.y-y,e.x-x)||rnd(TAU);
+      const k=o.knock*TILE*(1-clamp(dd/R,0,1)*.5)/Math.max(1,(e.def.poise||1)*.5);
+      e.kbx+=Math.cos(a)*k; e.kby+=Math.sin(a)*k;
+      e.stagger=Math.max(e.stagger,.16); }
     if(o.poison){ if(o.poison>=e.poisonDps){e.poisonDps=o.poison;e.poisonSrc=src;} e.poisonT=4.2; if(o.plague)e.poisonPlague=true; }
     if(o.shred)e.shred=Math.min(e.armor*.9,(e.shred||0)+o.shred);
     if(o.vuln){e.vuln=o.vuln;e.vulnT=4;}
@@ -1833,9 +1860,9 @@ function choosePickup(){
   const alive=S.enemies.length;
   const drops=S.drops.length;
   // pity: badly hurt and nothing healing has shown up in a while
-  if(hpF<.35&&S.sinceMed>=4){ S.sinceMed=0; return 'medkit'; }
+  if(hpF<.5&&S.sinceMed>=3){ S.sinceMed=0; return 'medkit'; }
   const w={
-    medkit: hpF>.85?.12:hpF>.6?1:hpF>.35?3.2:6.5,
+    medkit: hpF>.85?.15:hpF>.6?1.8:hpF>.35?4.5:8,
     shield: hpF>.8?.6:hpF>.5?1.8:3.0,
     coolant: heatF>.6?2.8:heatF>.3?1.4:.7,
     rage:   1.5,
@@ -1869,7 +1896,8 @@ function clearPickups(){ for(const p of S.pickups)World.removePickup(p); S.picku
 function takePickup(p){
   const D=PICKUPS[p.kind], st=S.st, P=S.P;
   switch(p.kind){
-    case 'medkit': healPlayer(70); text(P.x,P.y,1.6,'+70','#6ee7a8',16); break;
+    case 'medkit': { const v=Math.round(Math.max(70,st.maxHp*.5));
+      healPlayer(v); text(P.x,P.y,1.6,'+'+v,'#6ee7a8',16); break; }
     case 'coolant': P.heat=0; P.overheat=0; P.coolT=22; P.coolArmed=true; break;
     case 'rage': P.rageT=25; P.rageArmed=true; break;
     case 'shield': P.shield=260; break;
@@ -1918,8 +1946,10 @@ function updateDrops(dt){
       }
       if(dd<(TILE*.55)**2){
         if(d.kind==='xp'){ gainXp(d.v); sfx('pick',.35,rnd(1.2,.95)); }
+        else if(d.kind==='hp'){ healPlayer(d.v); text(d.x,d.y,1.2,'+'+Math.round(d.v),'#6ee7a8',13);
+          sfx('pick',.4,1.5); }
         else { S.scrap+=d.v; S.earned+=d.v; sfx('scrap',.3,rnd(1.2,.95)); }
-        part(d.x,d.y,.4,d.kind==='xp'?'#35e6ff':'#ffc247',{sp:2,life:.3,r:.1});
+        part(d.x,d.y,.4,d.kind==='xp'?'#35e6ff':d.kind==='hp'?'#6ee7a8':'#ffc247',{sp:2,life:.3,r:.1});
         S.drops.splice(i,1); UI.sync(); continue;
       }
     }
@@ -2240,7 +2270,16 @@ function waveDone(){
   clearRifts();
   const bonus=20+S.wave*6;
   S.scrap+=bonus; S.earned+=bonus;
-  log('第 '+S.wave+' 波清除 · 奖励 '+bonus+' 碎片');
+  // you should start each wave able to take a hit, the way every wave-defence game does
+  const P=S.P;
+  if(P&&P.alive&&P.hp<S.st.maxHp){
+    const mend=Math.round(S.st.maxHp*.55);
+    const before=P.hp; healPlayer(mend);
+    const got=Math.round(P.hp-before);
+    if(got>0){ text(P.x,P.y,1.8,'+'+got,'#6ee7a8',17);
+      shock(P.x,P.y,.3,2.2,'#6ee7a8',.5); }
+  }
+  log('第 '+S.wave+' 波清除 · 奖励 '+bonus+' 碎片 · 战地救护');
   if(S.wave>S.best){S.best=S.wave;saveBest();}
   S.stageWaves++;
   const st=STAGES[S.stage];

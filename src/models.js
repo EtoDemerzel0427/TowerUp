@@ -613,9 +613,10 @@ function makeObstacle(o){
 
 /* ---------- pickups ---------- */
 function makeDrop(kind){
-  const c=kind==='xp'?'#35e6ff':'#ffc247';
+  const c=kind==='xp'?'#35e6ff':kind==='hp'?'#6ee7a8':'#ffc247';
   const g=new THREE.Group();
   const m=m3(kind==='xp'?geo('dr_x',()=>new THREE.OctahedronGeometry(.15,0))
+            :kind==='hp'?geo('dr_h',()=>new THREE.BoxGeometry(.2,.2,.2))
                         :geo('dr_s',()=>new THREE.TetrahedronGeometry(.17)),
     mat(c,{em:c,ei:1.7,metal:.4,flat:true}),0,0,0);
   m.castShadow=false; g.add(m); g.userData.spin=m;
