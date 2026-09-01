@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>深渊回廊</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Share+Tech+Mono&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <div class="stage">
+    <div class="board" id="board">
+      <canvas id="game"></canvas>
+      <canvas id="fx2d"></canvas>
+      <div class="vig"></div><div class="crt"></div>
+      <div class="hud">
+        <div class="hud-top">
+          <div class="corebar">
+            <div class="cb-head"><span>核心塔台</span><b id="vCore">3000 / 3000</b></div>
+            <div class="cb-track"><i id="coreFill"></i></div>
+          </div>
+          <div class="chip scrap"><span class="k">碎片</span><span class="v" id="vScrap">200</span></div>
+          <div class="chip lives"><span class="k">命</span><span class="v" id="vLives"></span></div>
+          <div class="chip power"><span class="k">炮塔</span><span class="v" id="vPower">0</span><span class="mul" id="vMul">×1.0</span></div>
+          <div class="chip wave"><span class="k" id="kStage">区域</span><span class="v" id="vWave">0</span></div>
+          <div class="spacer"></div>
+          <div class="ctl">
+            <button class="iconbtn" id="bLayout" title="切换操作布局 (,)">⇄</button>
+            <button class="iconbtn speedbtn" id="bSpeed" title="速度 (Tab)">×1</button>
+            <button class="iconbtn" id="bPause" title="暂停 (P)">⏸</button>
+            <button class="iconbtn" id="bSound" title="音效 (M)">♪</button>
+          </div>
+        </div>
+        <div class="banner" id="banner"><div class="bg"></div>
+          <div class="t1">Wave Incoming</div><div class="t2" id="bannerT">WAVE 01</div></div>
+        <div class="hud-bottom">
+          <div class="abilities" id="abilities"></div>
+          <div class="playerbar">
+            <div class="pb-row">
+              <span class="lvbadge">LV <b id="vLevel">1</b></span><span class="xpnote" id="xpNote"></span>
+              <div class="xptrack"><i id="xpFill"></i></div>
+            </div>
+            <div class="hptrack"><i id="hpFill"></i><span id="vHp">120 / 120</span></div>
+            <div class="dashrow"><span class="dl">冲刺</span><div class="dashtrack"><i id="dashFill"></i></div></div>
+            <div class="dashrow ultrow"><span class="dl">大招</span><div class="ulttrack" id="ultTrack"><i id="ultFill"></i><em id="ultWord"></em></div></div>
+            <div class="dashrow heatrow"><span class="dl">枪管</span><div class="heattrack" id="heatTrack"><i id="heatFill"></i><em id="heatWord"></em></div></div>
+          </div>
+          <div class="minimap"><canvas id="mini" width="240" height="146"></canvas></div>
+        </div>
+      </div>
+      <div class="touchui hide" id="touchUI">
+        <div class="stickzone" id="zoneMove"></div>
+        <div class="stickzone right" id="zoneAim"></div>
+        <div class="tbtns">
+          <button class="tbtn" id="tDash">冲刺</button>
+          <button class="tbtn" id="tCharge">蓄力</button>
+          <button class="tbtn ult" id="tUlt">大招</button>
+        </div>
+        <div class="tbtns left">
+          <button class="tbtn small" id="tMenu">☰ 菜单</button>
+          <button class="tbtn small" id="tBuild">建造</button>
+          <button class="tbtn small" id="tUp">升级</button>
+        </div>
+      </div>
+      <div class="respawn hide" id="respawn"><b id="respawnT">5</b><span>秒后重新部署</span></div>
+    </div>
+  </div>
+
+  <button class="sheetclose hide" id="sheetClose">收起 ▾</button>
+  <aside class="rail">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 24 24" fill="none"><path d="M12 2 21 7v10l-9 5-9-5V7z" stroke="#35e6ff" stroke-width="1.4"/><path d="M12 7 16.5 9.5v5L12 17l-4.5-2.5v-5z" fill="#35e6ff" opacity=".22"/><circle cx="12" cy="12" r="2" fill="#35e6ff"/></svg>
+      <div><h1>深渊回廊</h1><p>ABYSS CORRIDOR</p></div>
+    </div>
+    <div class="railbody">
+      <div class="sec" id="secBuild">
+        <div class="sec-h"><h2>建造炮塔</h2><em id="buildHint">1–8 快捷键</em></div>
+        <div class="shop" id="shop"></div>
+      </div>
+      <div class="sec" id="secInsp" style="display:none"></div>
+      <div class="sec">
+        <div class="sec-h"><h2>下一波</h2><em id="waveTag">—</em></div>
+        <div class="wp" id="wavePrev"></div>
+        <button class="nextbtn" id="bNext">提前出击 <small id="nextBonus"></small></button>
+      </div>
+      <div class="sec">
+        <div class="sec-h"><h2>已获强化</h2><em id="bestTag"></em></div>
+        <div class="perks" id="perks"><span class="noperk">击杀敌人拾取经验，升级后三选一</span></div>
+      </div>
+      <div class="sec">
+        <div class="sec-h"><h2>战况</h2></div>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="ovl" id="ovlStart">
+    <div class="panelbox">
+      <div class="title">深渊回廊</div>
+      <div class="sub">ABYSS CORRIDOR · 操控守卫 · 保卫核心</div>
+      <div class="rule"></div>
+      <div class="pick-h">战役路线 · 五个区域</div>
+      <div class="picks" id="mapPicks"></div>
+      <div class="pick-h">选择难度</div>
+      <div class="picks" id="diffPicks"></div>
+      <button class="play" id="bPlay">进入战场</button>
+      <div class="pick-h">操作布局</div>
+      <div class="picks two" id="layoutPicks"></div>
+      <div class="tips" id="tipBox"></div>
+    </div>
+  </div>
+
+  <div class="ovl hide" id="ovlCards">
+    <div class="cardbox">
+      <div class="cardhead"><span class="lvup">LEVEL UP</span><h2>选择一项强化</h2></div>
+      <div class="cardrow" id="cardRow"></div>
+    </div>
+  </div>
+  <div class="ovl hide" id="ovlTele">
+    <div class="panelbox telebox">
+      <div class="telehead">
+        <span class="lvup">REGION CLEARED</span>
+        <h2 id="teleTitle">区域清空</h2>
+        <p id="teleSub"></p>
+      </div>
+      <div class="stageline" id="stageLine"></div>
+      <div class="pick-h">核心永久升级 · 碎片 <b id="teleScrap">0</b></div>
+      <div class="upgrid" id="upGrid"></div>
+      <button class="play" id="bNextStage">传送至下一区域</button>
+    </div>
+  </div>
+  <div class="ovl hide" id="ovlEnd"><div class="panelbox" id="endBox"></div></div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script src="src/data.js"></script>
+<script src="src/textures.js"></script>
+<script src="src/core.js"></script>
+<script src="src/models.js"></script>
+<script src="src/post.js"></script>
+<script src="src/world.js"></script>
+<script src="src/game.js"></script>
+<script src="src/ui.js"></script>
+</body>
+</html>
