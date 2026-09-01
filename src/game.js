@@ -2066,7 +2066,7 @@ function updateRifts(dt){
         shock(r.x,r.y,.3,2.6,'#ff3d8a',.6); }
       r.over-=dt;
       if(r.over<=0){
-        r.over=RIFT.overflowEvery(S.wave)*rnd(1.15,.85);
+        r.over=(r.everyOverride||RIFT.overflowEvery(S.wave))*rnd(1.15,.85);
         r.overLeft--;
         const a=rnd(TAU), dd=rnd(RIFT.r*TILE*.75);
         spawnUnit(pick(RIFT.overflowPool),r.x+Math.cos(a)*dd,r.y+Math.sin(a)*dd);
