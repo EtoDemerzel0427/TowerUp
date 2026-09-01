@@ -12,16 +12,21 @@ function KEYMAP(){
   return {
     up:!!K[mv[0]], down:!!K[mv[1]], left:!!K[mv[2]], right:!!K[mv[3]],
     turnL:!!K[am[2]], turnR:!!K[am[3]],
-    charge:!!K[am[0]],          // aim-cluster up  = wind up the heavy shot
+    // F is the charge in both layouts: the movement hand swaps between the arrows
+    // and WASD, but F sits under the other hand either way. The old aim-cluster key
+    // still works so existing muscle memory is not broken.
+    charge:!!K['f']||!!K[am[0]],
     fine:!!K[am[1]],            // aim-cluster down = precision aim (slow turn)
     fire:!!K[' '],              // space = trigger
     dash:!!K['shift'],
   };
 }
 function layoutHint(){
+  // charge is F in both layouts on purpose: the movement hand swaps between the
+  // arrows and WASD, so a charge key inside the aim cluster kept moving with it
   return S.layout==='right'
-    ? {move:'↑ ↓ ← →', turn:'A / D', fire:'空格', charge:'W', fine:'S'}
-    : {move:'W A S D', turn:'← / →', fire:'空格', charge:'↑', fine:'↓'};
+    ? {move:'↑ ↓ ← →', turn:'A / D', fire:'空格', charge:'F', charge2:'W', fine:'S'}
+    : {move:'W A S D', turn:'← / →', fire:'空格', charge:'F', charge2:'↑', fine:'↓'};
 }
 function freshStats(){
   return {dmg:PLAYER.dmg,rate:PLAYER.rate,range:PLAYER.range,pierce:0,multi:1,explo:0,crit:0,
@@ -1449,21 +1454,8 @@ function updatePlayer(dt){
   if(KM.dash&&!P.dashLatch)dash();
   P.dashLatch=KM.dash;
   P.aiming=aiming;
-  /* The trigger doubles as the charge. Hold 空格 and you spray as normal while the
-     shot winds up; let go past the threshold and the heavy round lands on top of
-     it. The dedicated charge key still works for anyone who prefers it, and
-     auto-fire deliberately does not build a hold -- it only reads the real key. */
-  if(KM.fire&&!P.charging&&P.overheat<=0)P.fireHold=(P.fireHold||0)+dt;
-  else if(!KM.fire&&P.fireHold>0){
-    if(P.fireHold>=PLAYER.holdCharge&&P.chgCd<=0&&P.overheat<=0){
-      P.charge=Math.min(PLAYER.chargeMax,P.fireHold-PLAYER.holdCharge*.5);
-      P.charging=true; releaseCharge();
-    }
-    P.fireHold=0;
-  }
-  if(P.charging)P.fireHold=0;
-
-  // down (or shift) holds a charge
+  // holding the trigger is sustained fire and nothing else -- the charge has its
+  // own key, so the two never fight over the same press
   const wantCharge=KM.charge||(T.on&&T.charge);
   if(wantCharge&&!P.charging&&P.overheat<=0){ P.charging=true; P.charge=0; }
   if(!wantCharge&&P.charging) releaseCharge();

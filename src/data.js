@@ -31,9 +31,7 @@ const PLAYER={
   heatPerShot:7.8, heatMax:100, heatCool:30, overheatLock:1.4,
   // right button: hold to charge a piercing slug
   chargeMax:1.05, chargeMinMul:1.1, chargeMaxMul:6.5, chargeHeat:26, chargeCd:.35,
-  // hold the trigger this long and letting go delivers the heavy shot as well;
-  // one key for both is what everyone reaches for
-  holdCharge:.55,
+
 };
 
 /* ---------- arenas ---------- */

@@ -915,7 +915,6 @@ function bindInput(){
     if(k==='tab'){ cycleSpeed(); return; }
     if(k==='m'){ toggleSound(); return; }
     if(k==='h'||k==='?'||k==='/'){ toggleHelp(); return; }
-    if(k==='f'){ toggleAuto(); return; }
     if(k===','){ toggleLayout(); return; }
     const n=parseInt(k,10);
     if(n>=1&&n<=8){const key=TKEYS.find(x=>TOWERS[x].hotkey===n);if(key)selectBuild(key);return;}
@@ -977,10 +976,10 @@ function helpRows(){
   ]);
   const fightSec=sec('战斗',[
     row([L.fire],'开火（按住连射）· 枪口<u>自动锁定</u>最近的敌人'),
-    row(['F'],'自动开火开关 · 开启后锁到敌人就自己射，不必按住'+(touch?'（手机默认开）':'（键盘默认关）')),
+    row(['⊙'],'HUD 上的自动开火开关 · 开启后锁到敌人就自己射，不必按住'+(touch?'（手机默认开）':'（键盘默认关）')),
     row(L.turn.split('/').map(x=>x.trim()),'切换锁定目标'),
-    row([L.fire],'<u>长按</u>开火键＝边打边蓄力，松手放出重击 · <u>无视护甲</u>，破重甲专用'),
-    row([L.charge],'专用蓄力键（同样是按住蓄力、松手发射）'),
+    row([L.charge],'蓄力重击 · 按住蓄力、松手发射，<u>无视护甲</u>，破重甲专用 · '+
+      '<u>此键不随布局改变</u>（'+L.charge2+' 同样可用）'),
     row([L.fine],'按住＝自由瞄准 · <u>会暂时关闭自动跟枪</u>，打特定位置时才用'),
     row(['Q'],'歼灭光束 · 造成伤害积攒，满了释放'),
   ]);
@@ -1053,7 +1052,7 @@ function cycleSpeed(){S.speed=S.speed===1?2:S.speed===2?3:1;el.bSpeed.textConten
 function toggleSound(){S.sound=!S.sound;el.bSound.classList.toggle('on',S.sound);el.bSound.textContent=S.sound?'♪':'✕';}
 function toggleAuto(){ S.autoFire=!S.autoFire;
   const b=$('bAuto'); if(b){ b.classList.toggle('on',S.autoFire); b.textContent=S.autoFire?'⊙':'⊘'; }
-  toast(S.autoFire?'自动开火：开 · 锁定目标后自动射击':'自动开火：关 · 按住空格开火',
+  toast(S.autoFire?'自动开火：开 · 锁定目标后自动射击':'自动开火：关 · 按住 '+layoutHint().fire+' 开火',
         S.autoFire?'#6ee7a8':'#8d96bd'); renderTips(); }
 
 
@@ -1096,9 +1095,9 @@ function renderTips(){
   el.tipBox.innerHTML=
     '<div><b>'+L.move+'</b> 移动 · <b>Shift</b> 冲刺（带无敌帧）</div>'+
     (S.autoFire
-      ? '<div><b>自动瞄准并开火</b>：只管走位，枪口会自己锁敌开火（<b>F</b> 可关闭）</div>'
+      ? '<div><b>自动瞄准并开火</b>：只管走位，枪口会自己锁敌开火（HUD 的 <b>⊙</b> 可关闭）</div>'
         +'<div><b>'+L.turn+'</b> 换目标 · <b>'+L.fire+'</b> 按住＝强制连射（可打到过热）</div>'
-      : '<div><b>自动跟枪</b>：枪口对准当前目标 · <b>'+L.turn+'</b> 换目标（<b>F</b> 开自动开火）</div>'
+      : '<div><b>自动跟枪</b>：枪口对准当前目标 · <b>'+L.turn+'</b> 换目标（HUD 的 <b>⊙</b> 开自动开火）</div>'
         +'<div><b>'+L.fire+'</b> 开火（按住连射）</div>')+
     '<div><b>'+L.fine+'</b> 按住＝自由瞄准 · <b>'+L.charge+'</b> 蓄力重击（无视护甲）</div>'+
     '<div><b>Q</b> 歼灭光束（造成伤害充能，满了可释放）</div>'+
