@@ -4,7 +4,7 @@ const HALFW=COLS/2, HALFH=ROWS/2;
 
 const World=(()=>{
 let scene,cam,ren,ray,boardEl,dust,groundPlane;
-let partSys=[];
+let partGeo,partPts,partPos,partCol,partSize,partMat;
 let beamGeo,beamLines,beamPos,beamCol,beamUv;
 let shockPool=[],magmaPool=[],dropPool=[];
 let ghost=null,rangeRing=null,rangeDisc=null,selRing=null,aimRing=null,hoverPlate=null;
@@ -142,22 +142,27 @@ function init(){
   L.rim=new THREE.DirectionalLight(0x35e6ff,.6); L.rim.position.set(-14,7,-10); scene.add(L.rim);
   L.rim2=new THREE.DirectionalLight(0xff3d8a,.42); L.rim2.position.set(13,5,-12); scene.add(L.rim2);
 
-  /* Three particle systems by size class instead of one. A per-vertex point size
-     in a custom ShaderMaterial rendered the last point of every batch as a
-     full-screen white quad on Apple/ANGLE (count-dependent, so a driver quirk);
-     three fixed-size PointsMaterials give the same small/medium/large read with
-     nothing exotic in the pipeline. */
-  partSys=[];
-  for(const sz of [.13,.22,.36]){
-    const g=new THREE.BufferGeometry();
-    const pos=new Float32Array(PMAX*3), col=new Float32Array(PMAX*3);
-    g.setAttribute('position',new THREE.BufferAttribute(pos,3));
-    g.setAttribute('color',new THREE.BufferAttribute(col,3));
-    const pts=new THREE.Points(g,new THREE.PointsMaterial({size:sz,map:DOT,vertexColors:true,
-      transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true}));
-    pts.frustumCulled=false; scene.add(pts);
-    partSys.push({g,pos,col,pts,n:0});
-  }
+  /* Particles carry their own size. PointsMaterial has one size for the whole
+     cloud, so a shell fragment and a spark were the same dot and every burst read
+     as confetti. Size is a per-point attribute here and scales with distance and
+     FOV. (The first version of this shader forgot to declare uScale, failed to
+     compile, and three.js drew the batch with a broken program -- which showed up
+     as a full-screen white quad. It was not a driver bug.) */
+  partGeo=new THREE.BufferGeometry();
+  partPos=new Float32Array(PMAX*3); partCol=new Float32Array(PMAX*3); partSize=new Float32Array(PMAX);
+  partGeo.setAttribute('position',new THREE.BufferAttribute(partPos,3));
+  partGeo.setAttribute('color',new THREE.BufferAttribute(partCol,3));
+  partGeo.setAttribute('size',new THREE.BufferAttribute(partSize,1));
+  partMat=new THREE.ShaderMaterial({
+    uniforms:{map:{value:DOT},uScale:{value:600}},
+    vertexShader:`uniform float uScale; attribute float size; varying vec3 vCol;
+      void main(){ vCol=color; vec4 mv=modelViewMatrix*vec4(position,1.0);
+        gl_PointSize=clamp(size*uScale/max(1.0,-mv.z),1.0,160.0); gl_Position=projectionMatrix*mv; }`,
+    fragmentShader:`uniform sampler2D map; varying vec3 vCol;
+      void main(){ float a=texture2D(map,gl_PointCoord).a; gl_FragColor=vec4(vCol*a,a); }`,
+    vertexColors:true,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false});
+  partPts=new THREE.Points(partGeo,partMat);
+  partPts.frustumCulled=false; scene.add(partPts);
 
   /* Beams used to be GL lines, which are one pixel wide whatever you ask for --
      a sniper shot or a lightning arc was a hairline at 2x DPR. They are ribbons
@@ -781,16 +786,19 @@ function frame(dt,now){
   }
 
   // particles
-  for(const ps of partSys)ps.n=0;
+  let pi=0;
   for(const p of S.parts){
-    const r=p.r||.1, ps=partSys[r<.085?0:r<.15?1:2];
-    if(ps.n>=PMAX)continue;
-    const k=1-p.t/p.life, i=ps.n++;
-    ps.pos[i*3]=WX(p.x); ps.pos[i*3+1]=p.z; ps.pos[i*3+2]=WZ(p.y);
-    ps.col[i*3]=p.col.r*k; ps.col[i*3+1]=p.col.g*k; ps.col[i*3+2]=p.col.b*k;
+    if(pi>=PMAX)break;
+    const k=1-p.t/p.life;
+    partPos[pi*3]=WX(p.x); partPos[pi*3+1]=p.z; partPos[pi*3+2]=WZ(p.y);
+    partCol[pi*3]=p.col.r*k; partCol[pi*3+1]=p.col.g*k; partCol[pi*3+2]=p.col.b*k;
+    partSize[pi]=(p.r||.1)*2.6*(.55+.45*k); pi++;
   }
-  for(const ps of partSys){ ps.g.setDrawRange(0,ps.n);
-    ps.g.attributes.position.needsUpdate=true; ps.g.attributes.color.needsUpdate=true; }
+  partGeo.setDrawRange(0,pi);
+  partGeo.attributes.position.needsUpdate=true; partGeo.attributes.color.needsUpdate=true;
+  partGeo.attributes.size.needsUpdate=true;
+  { const v=new THREE.Vector2(); ren.getDrawingBufferSize(v);
+    partMat.uniforms.uScale.value=v.y/(2*Math.tan(cam.fov*Math.PI/360)); }
 
   let bi=0;   // segment count; each segment is two triangles
   const putV=(vi,x,y,z,u,v,r,g,bl)=>{ beamPos[vi*3]=x; beamPos[vi*3+1]=y; beamPos[vi*3+2]=z;
