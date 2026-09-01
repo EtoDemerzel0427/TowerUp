@@ -161,7 +161,7 @@ function ac(){
     const comp=AC.createDynamicsCompressor();
     comp.threshold.value=-18; comp.knee.value=22; comp.ratio.value=7;
     comp.attack.value=.003; comp.release.value=.22;
-    MASTER=AC.createGain(); MASTER.gain.value=.85;
+    MASTER=AC.createGain(); MASTER.gain.value=.85*(S.volume==null?1:S.volume);
     MASTER.connect(comp); comp.connect(AC.destination);
     // generated impulse response: exponentially decaying stereo noise
     const len=Math.floor(AC.sampleRate*1.5), ir=AC.createBuffer(2,len,AC.sampleRate);

@@ -295,6 +295,15 @@ function upgradeHere(){
 function sellHere(){
   const t=nearestTower(1.4)||S.sel;
   if(!t){sfx('err');flashMsg('站到炮塔旁再按 T');return;}
+  /* T sits next to R on the keyboard and a sale only refunds 70%. A LV1 arrow is a
+     cheap mistake; an elite LV4 with overclock is a run-defining one. Anything past
+     LV2 wants a second press inside two seconds. */
+  if((t.lvl>=3||t.elite!=null)&&!(S.sellArm&&S.sellArm.t===t&&S.time-S.sellArm.at<2)){
+    S.sellArm={t,at:S.time}; sfx('pick',.5,.8);
+    toast('再按一次 T 确认出售 '+t.def.name+' LV'+t.lvl+' · 返还 '+sellValue(t),'#ffc247');
+    return;
+  }
+  S.sellArm=null;
   sellTower(t);
 }
 function selectTower(t){ S.sel=t; if(t)S.refitT=t; World.setSel(t);
@@ -1435,7 +1444,7 @@ function updatePlayer(dt){
     if(H.dps){
       P.hazT-=dt;
       if(P.hazT<=0){ P.hazT=.4;
-        const d=H.dps*.4*st.dr; P.hp-=d;
+        const d=H.dps*.4*st.dr*playerDrMul(); P.hp-=d;
         text(P.x,P.y,1.5,'-'+Math.round(d),H.c,13);
         S.flash=Math.max(S.flash,.12);
         burstFx(P.x,P.y,.3,H.c,5,3,.1);
@@ -1558,9 +1567,14 @@ function updatePlayer(dt){
      the props leave a lava pool or cook off when they break, and blowing up the
      crate you were standing behind is not something to do unasked. */
   const autoK = P.lock && (P.lock.k==='enemy'||P.lock.k==='rift');
+  /* The lock reaches further than the bullets do (a rift is locked from 17 tiles,
+     the round dies at 11.5), so with nothing else around the barrel would happily
+     empty itself at a rift it could not touch -- measured 15 shots / 44 heat in
+     2.5 s for zero damage, which reads as "auto-fire is broken". The lock still
+     tracks the target so you can walk toward it; the trigger waits for reach. */
   const autoFire = S.autoFire!==false && !P.charging &&
                    !(typeof Tutor!=='undefined' && Tutor.noAuto) &&
-                   autoK && targetValid(P.lock) &&
+                   autoK && targetValid(P.lock) && lockInReach(P.lock) &&
                    P.heat < st.heatMax*.88 && P.overheat<=0;   // headroom left for 蓄力
   const aiming=KM.fire||(T.on&&T.aim.act&&T.aim.m>.35)||autoFire;
   if(KM.dash&&!P.dashLatch)dash();
@@ -1750,6 +1764,13 @@ function targetValid(t){
     dist2(P.x,P.y,t.ref.x,t.ref.y)<(R*1.5)**2;
   if(t.k==='rift') return t.ref.alive&&dist2(P.x,P.y,t.ref.x,t.ref.y)<(R*1.9)**2;
   return S.obstacles.includes(t.ref)&&dist2(P.x,P.y,t.ref.x,t.ref.y)<(R*1.3)**2;
+}
+/* can a primary round actually get there? (edge of the target, not its centre) */
+function lockInReach(t){
+  if(!t||!t.ref)return false;
+  const P=S.P, maxD=S.st.range*TILE*1.15;
+  const rr=t.k==='enemy'?t.ref.r:t.k==='rift'?RIFT.r*TILE:t.ref.r*TILE;
+  return Math.hypot(t.ref.x-P.x,t.ref.y-P.y)-rr<=maxD;
 }
 function bestTarget(){
   const P=S.P, list=targetList();
@@ -2351,10 +2372,15 @@ function updatePurge(dt){
     if(Math.random()<dt*5)part(e.x,e.y,.7+e.r/TILE,'#ffc247',{sp:rnd(1.3,.3),el:1,life:.5,r:.09,g:-1});
   }
 }
+/* 1-based wave inside the region. Endless keeps cycling the region's cadence, so a
+   named heavy and a boss still turn up every wlen waves instead of every wave. */
+function regionWave(wlen){
+  return S.endless ? (S.stageWaves%wlen)+1 : Math.min(wlen,S.stageWaves+1);
+}
 function startWave(){
   if(S.waveActive)return;
   S.wave++; S.rest=0; S.qt=0; S.waveActive=true; S.lastKill=S.time; S.purge=0;
-  const wlen=STAGES[S.stage].waves, wis=Math.min(wlen,S.stageWaves+1);
+  const wlen=STAGES[S.stage].waves, wis=regionWave(wlen);
   const comp=waveComp(S.wave,wis,wlen,S.stage);
   const flat=[];
   for(const g of comp) for(let i=0;i<g.n;i++) flat.push({t:g.d+i*g.g,type:g.t});
@@ -2395,14 +2421,27 @@ function waveDone(){
       shock(P.x,P.y,.3,2.2,'#6ee7a8',.5); }
   }
   log('第 '+S.wave+' 波清除 · 奖励 '+bonus+' 碎片 · 战地救护');
+  toast('第 '+S.wave+' 波清除 · +'+bonus+' 碎片','#6ee7a8');
   if(S.wave>S.best){S.best=S.wave;saveBest();}
   S.stageWaves++;
   const st=STAGES[S.stage];
-  if(S.stageWaves>=st.waves){
+  /* "继续挑战无尽" used to hide the victory screen and nothing else: the rest timer
+     had been zeroed by startWave, so no wave ever came, and the one you could force
+     with G re-tripped the finale check and showed the victory screen again. */
+  if(S.stageWaves>=st.waves&&!S.endless){
     if(st.finale){ S.victory=true; endGame(true); return; }
     beginTeleport(); return;
   }
   S.rest=REST;
+  UI.sync();
+}
+function beginEndless(){
+  S.endless=true; S.victory=false; S.paused=false; S.over=false; S.running=true;
+  S.rest=REST+3;
+  if(S.playerLives<maxLives()){ S.playerLives++; log('无尽模式 · 恢复 1 条命'); }
+  banner('ENDLESS');
+  toast('无尽模式 · 波次不再停止，看你能守到第几波','#ffe89a');
+  log('▶ 无尽模式开始 · 敌人持续增强');
   UI.sync();
 }
 /* ---------- teleport between regions ---------- */
@@ -2455,7 +2494,7 @@ function retryStage(){
   S.wave=S.stageStartWave; S.stageWaves=0;
   S.over=false; S.running=true; S.paused=false; S.teleporting=false; S.victory=false;
   S.waveActive=false; S.queue=[]; S.qt=0; S.rest=REST+3;
-  S.playerLives=S.diff.lives;
+  S.playerLives=maxLives();   // 备用信标 bought earlier still counts
   applyCoreUpgrades(false); S.core.shield=S.core.maxShield;
   S.core.flash=0; S.core.cool=0;
   // keep what you learned; refund the turrets you had standing

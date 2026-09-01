@@ -64,7 +64,10 @@ function init(){
   L.fill=new THREE.DirectionalLight(0x9fb6ff,.55); L.fill.position.set(-4,9,16); scene.add(L.fill);
   const sun=L.sun=new THREE.DirectionalLight(0xdfeaff,2.15);
   sun.position.set(11,26,10); sun.castShadow=true;
-  sun.shadow.mapSize.set(2048,2048);
+  // phones get a quarter-size shadow map: soft PCF over 2048² on a mobile GPU is
+  // the single most expensive thing in the frame, and the top-down camera hides it
+  const coarse=matchMedia('(pointer: coarse)').matches;
+  sun.shadow.mapSize.set(coarse?1024:2048,coarse?1024:2048);
   const sc=sun.shadow.camera; sc.left=-26;sc.right=26;sc.top=18;sc.bottom=-18;sc.near=1;sc.far=70;
   sun.shadow.bias=-.0012; sun.shadow.normalBias=.02;
   scene.add(sun); scene.add(sun.target);
@@ -608,9 +611,11 @@ function frame(dt,now){
       b.m.position.x=Math.cos(b.a+now*.5)*c.r*.45;
       b.m.position.z=Math.sin(b.a+now*.5)*c.r*.45;
       b.m.position.y=.45+Math.sin(now*1.6+b.ph)*.22;
-      b.m.material.opacity=.16*fade;
+      // three LV4 clouds over the Core used to stack into an opaque green wall
+      // you could not see enemies through; thinner blobs, same radius
+      b.m.material.opacity=.09*fade;
     }
-    o.userData.pad.material.opacity=.12*fade;
+    o.userData.pad.material.opacity=.08*fade;
     o.rotation.y+=dt*.35;
   }
   // field pickups
@@ -650,12 +655,18 @@ function frame(dt,now){
     const u=o.userData;
     u.beacon.position.y=.75+Math.sin(now*3)*.08; u.beacon.rotation.y+=dt*2;
     u.ring.material.opacity=.25+Math.sin(now*4)*.08+(s.p>0?.3:0);
-    if(u.prog){ o.remove(u.prog); u.prog.geometry.dispose(); }
-    if(s.p>0){
-      const ng=new THREE.Mesh(new THREE.RingGeometry(SALVAGE.r*.72,SALVAGE.r*.9,48,1,-Math.PI/2,TAU*clamp(s.p,0,1)),
-        glowMat('#ffe89a',.95,THREE.DoubleSide));
-      ng.rotation.x=-Math.PI/2; ng.position.y=.08; o.add(ng); u.prog=ng;
-    } else u.prog=null;
+    // the progress arc was rebuilt as a fresh geometry every single frame of a
+    // channel; rebuild only when it has visibly moved (about 40 times a strip)
+    const pq=s.p>0?Math.ceil(clamp(s.p,0,1)*40)/40:0;
+    if(u.progQ!==pq){
+      u.progQ=pq;
+      if(u.prog){ o.remove(u.prog); u.prog.geometry.dispose(); u.prog=null; }
+      if(pq>0){
+        const ng=new THREE.Mesh(new THREE.RingGeometry(SALVAGE.r*.72,SALVAGE.r*.9,48,1,-Math.PI/2,TAU*pq),
+          glowMat('#ffe89a',.95,THREE.DoubleSide));
+        ng.rotation.x=-Math.PI/2; ng.position.y=.08; o.add(ng); u.prog=ng;
+      }
+    }
   }
   if(linkLines)linkLines.material.opacity=.24+Math.sin(now*2.2)*.1;
 

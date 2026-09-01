@@ -158,8 +158,9 @@ function drawOverlay(){
         c2.beginPath(); c2.moveTo(a0.x,a0.y); c2.lineTo(lp.x,lp.y); c2.stroke();
         c2.setLineDash([]);
         const label=T.k==='rift'?'裂隙':T.k==='prop'?((PROPS[ref.kind]||{}).n||'掩体'):(ref.def?ref.def.name:'目标');
-        c2.font='600 9.5px "Chakra Petch",sans-serif'; c2.fillStyle='#ffc85a';
-        c2.textAlign='center'; c2.fillText(label+' · '+L2turn()+' 切换',lp.x,lp.y-s2-7);
+        const far=!lockInReach(T);
+        c2.font='600 9.5px "Chakra Petch",sans-serif'; c2.fillStyle=far?'#ff9d6a':'#ffc85a';
+        c2.textAlign='center'; c2.fillText(label+(far?' · 射程外，靠近':' · '+L2turn()+' 切换'),lp.x,lp.y-s2-7);
       }
     }
     // build ghost sits under your feet
@@ -348,13 +349,6 @@ function drawOverlay(){
       c2.fillStyle='rgba(255,232,154,'+(.6+b*.4)+')';
       c2.fillText('◆ 歼灭光束就绪 · 按 Q 释放 ◆',VW/2,34);
     }
-  }
-  if(S.paused&&S.running&&!S.over&&!S.cards){
-    c2.fillStyle='rgba(4,6,14,.5)';c2.fillRect(0,0,VW,VH);
-    c2.font='700 34px "Chakra Petch",sans-serif';c2.fillStyle='#e8ecff';c2.textAlign='center';
-    c2.fillText('暂停',VW/2,VH/2);
-    c2.font='400 13px "Share Tech Mono",monospace';c2.fillStyle='#8d96bd';
-    c2.fillText('P 继续',VW/2,VH/2+28);
   }
   if(S.toast){
     const k=S.toast.t/S.toast.life, a=k<.12?k/.12:k>.75?(1-k)/.25:1;
@@ -591,7 +585,7 @@ const fmt=n=>n>=10000?(n/1000).toFixed(0)+'k':n>=1000?(n/1000).toFixed(1)+'k':Ma
 function renderWavePrev(){
   const w=S.wave+1;
   // preview has to use the same region-relative cadence the spawner does
-  const wlen=STAGES[S.stage].waves, wis=Math.min(wlen,S.stageWaves+1);
+  const wlen=STAGES[S.stage].waves, wis=regionWave(wlen);
   const comp=waveComp(w,wis,wlen,S.stage), agg={};
   for(const g of comp)agg[g.t]=(agg[g.t]||0)+g.n;
   el.waveTag.textContent='WAVE '+String(w).padStart(2,'0')+(wis>=wlen?' · BOSS':wis===wlen-1?' · 首领':'');
@@ -676,8 +670,9 @@ const UI={
   el.mul.classList.toggle('grow',need!=null&&S.riftProgress>0);
   el.powerChip.classList.toggle('full',slotsFull());
   const stg=STAGES[S.stage];
-  el.kStage.textContent='第'+(S.stage+1)+'区';
-  el.wave.textContent=Math.min(S.stageWaves+(S.waveActive?1:0),stg.waves)+'/'+stg.waves;
+  el.kStage.textContent=S.endless?'无尽':'第'+(S.stage+1)+'区';
+  el.wave.textContent=S.endless?'W'+(S.wave+(S.waveActive?0:1))
+    :Math.min(S.stageWaves+(S.waveActive?1:0),stg.waves)+'/'+stg.waves;
   const hp=clamp(S.core.hp/S.core.maxHp,0,1);
   el.coreFill.style.width=(hp*100)+'%';
   el.core.textContent=Math.max(0,Math.round(S.core.hp))+' / '+S.core.maxHp;
@@ -940,10 +935,32 @@ function bindInput(){
       if(!el.ovlHelp.classList.contains('hide')){ closeHelp(); return; }
       if(!el.ovlTutDone.classList.contains('hide')){ el.ovlTutDone.classList.add('hide');
         el.ovlStart.classList.remove('hide'); return; }
-      S.build=null;World.setGhost(null);selectTower(null);UI.sync();return;}
-    if(!S.running||S.cards)return;
-    if(k==='f'){ if(el.ovlTerm.classList.contains('hide'))openCoreTerm(); else closeCoreTerm(); return; }
+      if(S.pauseMenu){ togglePause(); return; }
+      // something armed or selected: Esc clears that first; a bare Esc is the pause menu
+      if(S.build||S.sel){ S.build=null;World.setGhost(null);selectTower(null);UI.sync();return; }
+      if(S.running&&!S.over&&!S.cards&&!S.teleporting)togglePause();
+      return;}
+    // the level-up screen is keyboard-driven too: 1 / 2 / 3 picks a card
+    if(S.cards){ const n=parseInt(k,10);
+      if(n>=1&&n<=S.cards.length){ ac(); takeCard(S.cards[n-1]); }
+      return; }
+    if(S.teleporting&&(k==='enter'||k===' ')){ if(!el.ovlTele.classList.contains('hide')){ ac(); nextStage(); } return; }
+    if(!S.running)return;
+    // F is the charge key. It only doubles as the terminal key at the one moment the
+    // terminal can actually open -- between waves, at the Core, with the line full.
+    // It used to try every press and toast "战斗中无法接入终端" on every charge shot.
+    if(k==='f'){
+      if(!el.ovlTerm.classList.contains('hide')){ closeCoreTerm(); return; }
+      if(coreTermReady()){ openCoreTerm(); return; }
+    }
     if(!el.ovlTerm.classList.contains('hide'))return;
+    if(S.pauseMenu){
+      if(k==='p')togglePause();
+      else if(k==='h'||k==='?'||k==='/'){ togglePause(false); openHelp(true); }
+      else if(k==='m'){ toggleSound(); renderPauseMenu(); }
+      else if(k==='o'){ toggleAuto(); renderPauseMenu(); }
+      else if(k===','){ toggleLayout(); renderPauseMenu(); }
+      return; }
     if(k==='e'){ buildHere(); return; }
     if(k==='r'){ upgradeHere(); return; }
     if(k==='t'){ sellHere(); return; }
@@ -965,11 +982,16 @@ function bindInput(){
   });
   addEventListener('keyup',ev=>{ S.keys[ev.key.toLowerCase()]=false; });
   addEventListener('blur',()=>{ S.keys={}; if(S.P)S.P.charging=false; });
+  // alt-tab away mid-wave and the run should be waiting where you left it, not
+  // three enemies further along the moment the tab regains focus
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden&&S.running&&!S.over&&!S.paused&&S.waveActive)togglePause(true);
+  });
   bindTouch();
   bindViewport();
   el.bNext.onclick=()=>{ac();callEarly();};
   el.bSpeed.onclick=cycleSpeed;
-  el.bPause.onclick=togglePause;
+  el.bPause.onclick=()=>togglePause();
   el.bSound.onclick=toggleSound;
   el.bLayout.onclick=toggleLayout;
   const tb=$('bTut'); if(tb)tb.onclick=()=>{ac();startTutorial();};
@@ -1047,7 +1069,8 @@ function helpRows(){
     row(['C'],ABILITIES[2].n+' · '+ABILITIES[2].desc),
     row(['G'],'提前出击 · 跳过剩余休整时间，按剩余秒数换碎片'),
     row(['Tab'],'加速 ×1 / ×2 / ×3'),
-    row(['P'],'暂停'),
+    row(['P','Esc'],'暂停菜单 · 音量、布局、返回主菜单都在里面 · 切走标签页会自动暂停'),
+    row(['1','2','3'],'升级三选一时直接按数字选卡 · 传送界面按 <b>Enter</b> 出发'),
   ]);
   const sysSec=sec('系统',[
     row(['H'],'打开 / 关闭本指南'),
@@ -1086,17 +1109,21 @@ function renderHelp(){
     '<button class="play" id="bHelpClose" style="margin-top:18px">明白了</button>';
   $('bHelpClose').onclick=closeHelp;
 }
-let helpWasPaused=false;
-function openHelp(){
+let helpWasPaused=false, helpFromPause=false;
+function openHelp(fromPause){
   S.helpSeen=true;   // recorded here, not polled: opening it pauses the sim
   renderHelp();
+  helpFromPause=!!fromPause;
   helpWasPaused=S.paused;
   if(S.running)S.paused=true;
   el.ovlHelp.classList.remove('hide');
 }
 function closeHelp(){
+  if(el.ovlHelp.classList.contains('hide'))return;
   el.ovlHelp.classList.add('hide');
   if(S.running&&!helpWasPaused)S.paused=false;
+  // opened from the pause menu: go back to it rather than straight into the fight
+  if(helpFromPause){ helpFromPause=false; togglePause(true); }
 }
 function toggleHelp(){ el.ovlHelp.classList.contains('hide')?openHelp():closeHelp(); }
 /* The core upgrade tree used to exist only inside the region-teleport overlay.
@@ -1128,11 +1155,72 @@ function closeCoreTerm(){
   if(el.ovlTerm.classList.contains('hide'))return;
   el.ovlTerm.classList.add('hide'); S.paused=false;
 }
-function togglePause(){ if(S.cards)return;
-  S.paused=!S.paused;el.bPause.textContent=S.paused?'▶':'⏸';el.bPause.classList.toggle('on',S.paused);}
+/* Pause is a menu, not a dimmed frame: resume, the guide, sound and volume, and a
+   way back to the menu that cannot be hit by accident. */
+function togglePause(force){
+  if(S.cards||S.teleporting||!S.running||S.over)return;
+  // another overlay already owns the pause (help / terminal / drawer): leave it alone
+  if(!S.pauseMenu&&S.paused)return;
+  const on=force===undefined?!S.pauseMenu:!!force;
+  if(on===!!S.pauseMenu)return;
+  S.pauseMenu=on; S.paused=on;
+  if(on){ S.keys={}; if(S.P)S.P.charging=false; renderPauseMenu(); }
+  const ovl=$('ovlPause'); if(ovl)ovl.classList.toggle('hide',!on);
+  el.bPause.textContent=on?'▶':'⏸'; el.bPause.classList.toggle('on',on);
+}
+let menuConfirmT=0;
+function renderPauseMenu(){
+  const box=$('pauseBox'); if(!box)return;
+  const L=layoutHint(), stg=STAGES[S.stage];
+  box.innerHTML=
+    '<div class="title" style="font-size:34px">暂停</div>'+
+    '<div class="sub">'+(S.endless?'无尽 · 第 '+S.wave+' 波':stg.name+' · 第 '+S.wave+' 波')+' · '+S.diff.name+'</div>'+
+    '<div class="rule"></div>'+
+    '<div class="pmgrid">'+
+      '<button class="play" id="pmResume">继续 <small>P / Esc</small></button>'+
+      '<div class="btnrow">'+
+        '<button class="btn" id="pmHelp">操作指南 <small>H</small></button>'+
+        '<button class="btn" id="pmAuto">自动开火：'+(S.autoFire?'开':'关')+' <small>O</small></button>'+
+      '</div>'+
+      '<div class="pmrow"><span>音量</span>'+
+        '<input type="range" id="pmVol" min="0" max="100" value="'+Math.round((S.volume==null?1:S.volume)*100)+'">'+
+        '<button class="btn" id="pmMute" style="flex:0 0 74px">'+(S.sound?'♪ 开':'✕ 静音')+'</button></div>'+
+      '<div class="pmrow"><span>布局</span><span class="pmval">'+L.move+' 移动 · '+L.turn+' 换目标</span>'+
+        '<button class="btn" id="pmLayout" style="flex:0 0 74px">切换 <small>,</small></button></div>'+
+      '<button class="btn danger" id="pmMenu">返回主菜单</button>'+
+    '</div>';
+  $('pmResume').onclick=()=>togglePause(false);
+  $('pmHelp').onclick=()=>{ togglePause(false); openHelp(true); };
+  $('pmAuto').onclick=()=>{ toggleAuto(); renderPauseMenu(); };
+  $('pmMute').onclick=()=>{ toggleSound(); renderPauseMenu(); };
+  $('pmLayout').onclick=()=>{ toggleLayout(); renderPauseMenu(); };
+  $('pmVol').oninput=e=>setVolume(e.target.value/100);
+  const pm=$('pmMenu');
+  pm.onclick=()=>{
+    // two presses inside two seconds: an accidental click must not end a run
+    if(performance.now()-menuConfirmT>2000){ menuConfirmT=performance.now();
+      pm.textContent='再按一次确认 · 本局进度将丢失'; return; }
+    togglePause(false);
+    // the training run has its own teardown; leaving it half-alive would put its
+    // step card on top of the next real game
+    if(typeof Tutor!=='undefined'&&Tutor.active){ Tutor.stop(true); return; }
+    S.running=false; S.over=true; S.paused=false;
+    $('ovlPause').classList.add('hide');
+    el.ovlStart.classList.remove('hide'); buildStart();
+  };
+}
 function cycleSpeed(){S.speed=S.speed===1?2:S.speed===2?3:1;el.bSpeed.textContent='×'+S.speed;
   el.bSpeed.classList.toggle('on',S.speed>1);}
-function toggleSound(){S.sound=!S.sound;el.bSound.classList.toggle('on',S.sound);el.bSound.textContent=S.sound?'♪':'✕';}
+function toggleSound(){S.sound=!S.sound;el.bSound.classList.toggle('on',S.sound);el.bSound.textContent=S.sound?'♪':'✕';
+  saveAudio();}
+function setVolume(v){ S.volume=clamp(+v||0,0,1); if(MASTER)MASTER.gain.value=.85*S.volume; saveAudio(); }
+function saveAudio(){ try{ localStorage.setItem('abyss2_audio',JSON.stringify({on:S.sound,vol:S.volume})); }catch(e){} }
+function loadAudio(){
+  S.volume=1;
+  try{ const a=JSON.parse(localStorage.getItem('abyss2_audio')||'null');
+    if(a){ S.sound=a.on!==false; S.volume=clamp(+a.vol,0,1); if(isNaN(S.volume))S.volume=1; } }catch(e){}
+  el.bSound.classList.toggle('on',S.sound); el.bSound.textContent=S.sound?'♪':'✕';
+}
 function toggleAuto(){ S.autoFire=!S.autoFire; saveAuto();
   const b=$('bAuto'); if(b){ b.classList.toggle('on',S.autoFire); b.textContent=S.autoFire?'⊙':'⊘'; }
   toast(S.autoFire?'自动开火：开 · 锁定敌人／裂隙后自动射击':'自动开火：关 · 需按住 '+layoutHint().fire+' 开火',
@@ -1153,15 +1241,25 @@ function buildAbilities(){
 
 /* ---------- start / end ---------- */
 let pickMap=MAPS[0], pickDiff=DIFFS[1];
+/* Five region cards used to be five copies of the same blue grid -- the biomes
+   only differed once you were standing in them. Tint each card with its region's
+   ground and wall colours and draw its hazards, so the choice reads at a glance. */
 function miniPreview(canvas,m){
   const x=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
-  x.fillStyle='#080b16';x.fillRect(0,0,w,h);
-  x.strokeStyle='#161d33';x.lineWidth=1;
+  const B=BIOMES[m.biome]||BIOMES.deck;
+  x.fillStyle=B.gTint;x.fillRect(0,0,w,h);
+  x.fillStyle='rgba(4,6,14,.62)';x.fillRect(0,0,w,h);
+  x.strokeStyle='rgba(255,255,255,.05)';x.lineWidth=1;
   for(let c=0;c<=COLS;c+=4){x.beginPath();x.moveTo(c/COLS*w,0);x.lineTo(c/COLS*w,h);x.stroke();}
   for(let r=0;r<=ROWS;r+=4){x.beginPath();x.moveTo(0,r/ROWS*h);x.lineTo(w,r/ROWS*h);x.stroke();}
   const obs=buildArena(m), sx=w/W, sy=h/H;
-  x.fillStyle='#2b3760';
+  const hz=buildHazards(m,obs), HZ=HAZARD[B.hazard]||{};
+  for(const hh of hz){ x.fillStyle=HZ.c||'#fff'; x.globalAlpha=B.hazard==='chasm'?.5:.28;
+    x.beginPath();x.ellipse(hh.x*sx,hh.y*sy,hh.r*TILE*sx,hh.r*TILE*sy*.8,0,0,TAU);x.fill(); }
+  x.globalAlpha=1;
+  x.fillStyle=B.wall;
   for(const o of obs)x.fillRect(o.x*sx-o.r*2.2,o.y*sy-o.r*1.8,o.r*4.4,o.r*3.6);
+  x.strokeStyle=B.trim;x.globalAlpha=.55;x.lineWidth=1.5;x.strokeRect(1,1,w-2,h-2);x.globalAlpha=1;
   x.fillStyle='#2f6bff';x.beginPath();x.arc(CX*sx,CY*sy,6,0,TAU);x.fill();
   x.strokeStyle='rgba(53,230,255,.5)';x.lineWidth=1.4;
   x.beginPath();x.arc(CX*sx,CY*sy,11,0,TAU);x.stroke();
@@ -1271,7 +1369,8 @@ function startGame(){
   ac();
   S.diff=pickDiff;
   S.stage=0; S.stageWaves=0; S.stageStartWave=0; S.coreUp={}; S.teleporting=false;
-  S.retries=0; S.sinceMed=0;
+  S.retries=0; S.sinceMed=0; S.endless=false;
+  if(S.pauseMenu){ S.pauseMenu=false; $('ovlPause').classList.add('hide'); el.bPause.textContent='⏸'; el.bPause.classList.remove('on'); }
   S.map=MAPS.find(m=>m.id===STAGES[0].map);
   S.obstacles=buildArena(S.map);
   S.hazards=buildHazards(S.map,S.obstacles);
@@ -1312,8 +1411,9 @@ function startGame(){
 }
 function endGame(win){
   if(S.over&&!win)return;
-  if(win){ sfx('win'); }
+  if(win){ sfx('win'); S.paused=true; }
   else { S.over=true; S.running=false; S.paused=false; sfx('lose'); shake(1.2); }
+  if(S.pauseMenu){ S.pauseMenu=false; $('ovlPause').classList.add('hide'); }
   if(S.wave>S.best){S.best=S.wave;saveBest();}
   el.ovlCards.classList.add('hide');
   const st=STAGES[S.stage];
@@ -1326,21 +1426,22 @@ function endGame(win){
       '<div class="eg"><b>'+S.kills+'</b><span>Kills</span></div>'+
       '<div class="eg"><b>'+S.level+'</b><span>Level</span></div>'+
     '</div>'+
-    (win?'<button class="play" id="bAgain">继续挑战无尽</button>'
+    (win?'<button class="play" id="bAgain">继续挑战无尽</button>'+
+         '<div class="retrynote">波次不再停止，敌人持续增强 · 保留全部炮塔、等级与升级</div>'
         :'<button class="play" id="bRetry">重试本区 · '+st.name+'</button>'+
          '<div class="retrynote">保留 <b>等级 '+S.level+'</b>、全部强化卡与核心升级，炮塔按 80% 折算返还</div>'+
          '<button class="btn" id="bAgain" style="width:100%;margin-top:8px">从第一区重新开始</button>')+
     '<button class="btn" id="bMenu" style="width:100%;margin-top:8px">返回主菜单</button>';
   el.ovlEnd.classList.remove('hide');
   const rt=$('bRetry'); if(rt)rt.onclick=()=>{ac();retryStage();};
-  $('bAgain').onclick=()=>{ if(win){el.ovlEnd.classList.add('hide');} else startGame(); };
+  $('bAgain').onclick=()=>{ ac(); if(win){ el.ovlEnd.classList.add('hide'); beginEndless(); } else startGame(); };
   $('bMenu').onclick=()=>{el.ovlEnd.classList.add('hide');el.ovlStart.classList.remove('hide');
     S.running=false;S.over=true;buildStart();};
 }
 
 /* ---------- boot ---------- */
 function boot(){
-  World.init(); World.initDropPool(); loadLayout(); loadAuto();
+  World.init(); World.initDropPool(); loadLayout(); loadAuto(); loadAudio();
   S.st=freshStats(); S.P=newPlayer();
   S.obstacles=buildArena(pickMap);
   S.hazards=buildHazards(pickMap,S.obstacles);

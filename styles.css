@@ -562,3 +562,29 @@ body.shortscreen .minimap{display:none}
 .termhint.hide{display:none}
 .ocpip{margin-left:6px;font-size:10px;letter-spacing:.05em;color:#ff9d3d;
   border:1px solid rgba(255,157,61,.5);border-radius:3px;padding:1px 5px}
+
+/* ---------- pause menu ---------- */
+.pausebox{width:min(440px,100%)}
+.pmgrid{display:grid;gap:8px}
+.pmgrid .play{margin-top:0;padding:13px}
+.pmgrid .play small,.pmgrid .btn small{font-family:var(--mono);font-size:10px;color:var(--dim2);font-weight:400;letter-spacing:.1em;margin-left:6px}
+.pmgrid .btn{flex-direction:row;justify-content:center;padding:10px}
+.pmrow{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel2);
+  border:1px solid var(--line);border-radius:var(--r);font-size:12px}
+.pmrow>span:first-child{flex:0 0 34px;font-size:10px;letter-spacing:.16em;color:var(--dim2);text-transform:uppercase}
+.pmrow .pmval{flex:1;font-family:var(--mono);font-size:11px;color:var(--dim)}
+.pmrow input[type=range]{flex:1;accent-color:var(--cyan);min-width:0}
+.btn.danger{border-color:#5a2233;background:#25101a;color:#ffb3bd;margin-top:6px}
+.btn.danger:hover{border-color:var(--red)}
+.pmnote{font-size:10.5px;color:var(--dim2);text-align:center;margin-top:6px;line-height:1.5}
+
+/* short landscape phones put the touch buttons on the same bottom edge as the
+   skill bar, so the skills go one row up, above the 菜单 / 建造 / 升级 buttons */
+body.touchmode.shortscreen .abilities{position:absolute;left:calc(10px + env(safe-area-inset-left));
+  bottom:calc(66px + env(safe-area-inset-bottom));z-index:5}
+/* the status bars sit between the two button clusters instead of under them */
+body.touchmode.shortscreen .hud-bottom{padding-left:calc(178px + env(safe-area-inset-left));
+  padding-right:calc(96px + env(safe-area-inset-right))}
+body.touchmode .ab{width:44px;height:44px}
+body.touchmode .ab .gl{font-size:15px}
+body.touchmode .ab .nm{font-size:7px}
