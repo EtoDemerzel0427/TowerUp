@@ -20,8 +20,12 @@ const Tutor = (function(){
   const touch=()=>S.touch.on;
 
   function wipe(){
-    for(const e of S.enemies)World.removeEnemy(e,false);
+    // Clearing the array is not enough: the objects stay alive:true, so the player's
+    // lock keeps pointing at a ghost and the barrel tracks where it used to be.
+    // That is what made the charge step unpassable -- every heavy shot flew 80 degrees wide.
+    for(const e of S.enemies){ e.alive=false; World.removeEnemy(e,false); }
     S.enemies.length=0;
+    if(S.P)S.P.lock=null;
     for(const r of S.rifts)World.removeRift(r);
     S.rifts.length=0;
     clearSalvage();

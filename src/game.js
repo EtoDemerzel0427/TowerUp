@@ -238,7 +238,8 @@ function buildBlockReason(c,r){
   if(slotsFull())return '炮塔已满 '+S.towers.length+'/'+towerSlots();
   if(c<1||r<1||c>=COLS-1||r>=ROWS-1)return '太靠近战场边缘';
   if(towerAt(c,r))return '此处已有炮塔';
-  if(dist2((c+.5)*TILE,(r+.5)*TILE,CX,CY)<((CORE.r+1.15)*TILE)**2)return '核心平台上不能建造';
+  if(dist2((c+.5)*TILE,(r+.5)*TILE,CX,CY)<(BUILD_MIN_R*TILE)**2)
+    return '离核心太近 · 炮塔需要架在 '+BUILD_MIN_R+' 格外';
   for(const o of S.obstacles) if(dist2((c+.5)*TILE,(r+.5)*TILE,o.x,o.y)<((o.r+.55)*TILE)**2)
     return '被'+((PROPS[o.kind]||{}).n||'掩体')+'挡住 · 可先打掉它';
   for(const h of S.hazards) if(dist2((c+.5)*TILE,(r+.5)*TILE,h.x,h.y)<((h.r+.4)*TILE)**2)
@@ -571,9 +572,17 @@ function hurt(e,amount,o={}){
   return dmg;
 }
 /* poise break: the moment your damage actually interrupts something */
+/* The bar only scaled with the wave number, but your own damage output grows far
+   faster than that -- measured 6.4 ultimates per wave after wave 15, peaking at
+   14 in a single wave. A screen-clearing beam should be a moment you wait for,
+   not a rotation. The requirement now also tracks how hard you hit, so investing
+   in damage speeds up everything else without turning the ultimate into spam. */
+function ultNeedNow(){
+  return PLAYER.ultNeed*(1+S.wave*.10)*Math.sqrt(Math.max(1,S.st.dmg/PLAYER.dmg));
+}
 function ultCharge(v){
   const P=S.P; if(!P||!P.alive||P.ultT>0)return;
-  const need=PLAYER.ultNeed*(1+S.wave*.04);
+  const need=ultNeedNow();
   const before=P.ult;
   P.ult=Math.min(1,P.ult+v/need);
   if(before<1&&P.ult>=1){ toast('歼灭光束就绪 · 按 Q 释放','#ffe89a'); sfx('level'); }
@@ -1715,7 +1724,10 @@ function targetList(){
 function targetValid(t){
   if(!t)return false;
   const P=S.P, R=S.st.range*TILE;
-  if(t.k==='enemy')return t.ref.alive&&dist2(P.x,P.y,t.ref.x,t.ref.y)<(R*1.5)**2;
+  // an enemy that is no longer on the field cannot be a target, however alive its
+  // object still claims to be
+  if(t.k==='enemy')return t.ref.alive&&S.enemies.includes(t.ref)&&
+    dist2(P.x,P.y,t.ref.x,t.ref.y)<(R*1.5)**2;
   if(t.k==='rift') return t.ref.alive&&dist2(P.x,P.y,t.ref.x,t.ref.y)<(R*1.9)**2;
   return S.obstacles.includes(t.ref)&&dist2(P.x,P.y,t.ref.x,t.ref.y)<(R*1.3)**2;
 }
@@ -2261,7 +2273,7 @@ function updateSalvage(dt){
         const amt=Math.round(s.amount*(1+S.st.scrapGain)*bonus);
         S.scrap+=amt; S.earned+=amt;
         // and the part you cannot buy: a slug of ult charge and some field medicine
-        const ult=PLAYER.ultNeed*(1+S.wave*.04)*.22;
+        const ult=ultNeedNow()*.22;   // always a fifth of the current bar
         ultCharge(ult);
         for(let k=0;k<2;k++)
           addDrop('hp',s.x+rnd(TILE,-TILE),s.y+rnd(TILE,-TILE),Math.round(S.st.maxHp*.09));

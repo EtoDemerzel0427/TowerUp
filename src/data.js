@@ -124,6 +124,11 @@ const STAGES=[
    emplacement a decision and puts the fighting back on you; the price ramp stays,
    but gently, since the cap is now the real constraint. */
 const BUILD_STEP=.14;
+/* Nothing stopped you from ringing every emplacement tight around the Core, which
+   is both the strongest layout and the least interesting one -- the rest of the map
+   never gets used. Turrets have to stand off, so they cover approaches instead of
+   huddling on the objective. */
+const BUILD_MIN_R=4.2;      // tiles from the Core centre
 const TOWER_SLOTS_BASE=4;
 /* Extra emplacements beyond the region's allowance come from two places and share
    one ceiling: 扩容基座 bought with scrap, or 据点扩建 earned by closing rifts.

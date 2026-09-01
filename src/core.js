@@ -135,7 +135,7 @@ function resolveObstacles(e,radius){
 }
 function blockedTile(c,r){
   const x=(c+.5)*TILE, y=(r+.5)*TILE;
-  if(dist2(x,y,CX,CY)<((CORE.r+1.15)*TILE)**2)return true;
+  if(dist2(x,y,CX,CY)<(BUILD_MIN_R*TILE)**2)return true;   // Core stand-off ring
   for(const o of S.obstacles) if(dist2(x,y,o.x,o.y)<((o.r+.55)*TILE)**2)return true;
   for(const h of S.hazards) if(dist2(x,y,h.x,h.y)<((h.r+.4)*TILE)**2)return true;
   return false;
