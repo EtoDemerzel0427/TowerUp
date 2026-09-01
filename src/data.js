@@ -120,7 +120,15 @@ const STAGES=[
    emplacement a decision and puts the fighting back on you; the price ramp stays,
    but gently, since the cap is now the real constraint. */
 const BUILD_STEP=.14;
-const TOWER_SLOTS_BASE=4;   // +1 per region reached, +1 per 扩容基座 core upgrade
+const TOWER_SLOTS_BASE=4;
+/* Extra emplacements beyond the region's allowance come from two places and share
+   one ceiling: 扩容基座 bought with scrap, or 据点扩建 earned by closing rifts.
+   Rifts are the only thing in the game turrets cannot touch -- closing one means
+   leaving the defence line for ~10 seconds to kill the thing spawning the wave --
+   so it is the right price for the one resource that decides how much of the
+   fighting your turrets get to do. Earning them frees the scrap for upgrades. */
+const SLOT_BONUS_MAX=3;
+const RIFT_SLOT_STEPS=[2,4,6];   // rifts to close for the 1st / 2nd / 3rd earned slot
 const TOWER_HP=[620,940,1300,1760], TOWER_HP_ELITE=520;
 const CORE_UP=[
  {id:'logi',  n:'工程模块', gl:'⚙', d:'炮塔造价增幅 -25%（可叠加）',  cost:230, step:95,  max:4},
@@ -130,7 +138,7 @@ const CORE_UP=[
  {id:'shield',n:'力场护盾', gl:'◈', d:'核心获得可再生护盾 +12%',   cost:300, step:110, max:5},
  {id:'regen', n:'维修单元', gl:'✚', d:'核心每秒回复 +9',          cost:240, step:90,  max:5},
  {id:'store', n:'传送储备', gl:'⬡', d:'每个新区域额外 +220 碎片',  cost:250, step:90,  max:4},
- {id:'slot',  n:'扩容基座', gl:'▣', d:'炮塔上限 +1',               cost:340, step:210, max:3},
+ {id:'slot',  n:'扩容基座', gl:'▣', d:'炮塔上限 +1（与「据点扩建」共享 +3 上限）', cost:340, step:210, max:3},
 ];
 function coreUpCost(u,lv){ return u.cost+u.step*lv; }
 const DIFFS=[

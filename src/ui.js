@@ -598,7 +598,11 @@ const UI={
   el.lives.textContent='◆'.repeat(Math.max(0,S.playerLives))+'◇'.repeat(Math.max(0,S.diff.lives-S.playerLives));
   el.livesChip.classList.toggle('low',S.playerLives<=1);
   el.power.textContent=S.towers.length+'/'+towerSlots();
-  el.mul.textContent='×'+buildScale().toFixed(1);
+  const need=riftsForNextSlot();
+  el.mul.textContent=(need!=null&&S.riftProgress>0)
+    ? '扩建 '+S.riftProgress+'/'+need
+    : '×'+buildScale().toFixed(1);
+  el.mul.classList.toggle('grow',need!=null&&S.riftProgress>0);
   el.powerChip.classList.toggle('full',slotsFull());
   const stg=STAGES[S.stage];
   el.kStage.textContent='第'+(S.stage+1)+'区';
@@ -959,6 +963,7 @@ function renderTips(){
     '<div><b>1–8</b> 选炮塔 · <b>E</b> 就地建造 · <b>R</b> 升级 · <b>T</b> 出售</div>'+
     '<div><b>[ ]</b> 切换已建炮塔 · <b>V</b> 改造为 1–8 选中的型号（保留位置）</div>'+
     '<div>炮塔<b>有数量上限</b>，每个区域不同 · 靠升级和改造变强，不是靠数量</div>'+
+    '<div><b>关闭裂隙</b>（只有你打得动）可「据点扩建」，永久提升炮塔上限</div>'+
     '<div><b>Z X C</b> 战术技能 · <b>G</b> 提前出击 · <b>Tab</b> 加速 · <b>P</b> 暂停</div>';
 }
 function buildStart(){
@@ -1003,6 +1008,7 @@ function startGame(){
   S.running=true; S.over=false; S.paused=false; S.victory=false; S.speed=1; S.waveActive=false;
   S.kills=0; S.earned=0; S.combo=0; S.comboT=0; S.overT=0; S.build=null; S.aim=null; S.sel=null;
   S.lastKill=0; S.purge=0; S.armorHint=false; S.eliteHint=false; S.fineHint=false;
+  S.slotEarned=0; S.riftProgress=0; S.riftsClosed=0;
   S.shake=0; S.flash=0;
   S.level=1; S.xp=0; S.xpNeed=xpForLevel(1); S.pendingCards=0; S.cards=null; S.cardCount={};
   S.st=freshStats(); S.P=newPlayer();

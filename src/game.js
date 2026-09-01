@@ -122,9 +122,17 @@ function buildScale(){
   return 1+BUILD_STEP*relief*S.towers.length;
 }
 /* how many emplacements you are allowed to hold at once */
+function slotBonus(){ return Math.min(SLOT_BONUS_MAX,(S.slotEarned||0)+(S.coreUp.slot||0)); }
+function slotsCapped(){ return (S.slotEarned||0)+(S.coreUp.slot||0)>=SLOT_BONUS_MAX; }
+/* rifts still to close before the next earned emplacement, or null once capped */
+function riftsForNextSlot(){
+  const n=S.slotEarned||0;
+  if(n>=RIFT_SLOT_STEPS.length||slotsCapped())return null;
+  return RIFT_SLOT_STEPS[n];
+}
 function towerSlots(){
   const st=STAGES[S.stage];
-  return (st&&st.slots!=null?st.slots:TOWER_SLOTS_BASE+S.stage) + (S.coreUp.slot||0);
+  return (st&&st.slots!=null?st.slots:TOWER_SLOTS_BASE+S.stage) + slotBonus();
 }
 function slotsFull(){ return S.towers.length>=towerSlots(); }
 const towerCost=key=>Math.round(TOWERS[key].cost*S.st.cost*buildScale());
@@ -1986,9 +1994,35 @@ function damageRift(r,dmg){
     text(r.x,r.y,2.2,'裂隙关闭!','#ff8ac0',18);
     spawnPickup(null,r.x,r.y);
     log('✦ 裂隙关闭 · 截断 '+left+' 个增援 · +'+scrap+' 碎片');
+    creditRift(r);
     World.removeRift(r);
     if(S.rifts.every(x=>!x.alive)&&S.waveActive)log('全部裂隙已封闭');
   }
+}
+/* closing rifts is the earned path to more emplacements */
+function creditRift(r){
+  S.riftsClosed=(S.riftsClosed||0)+1;
+  const need=riftsForNextSlot();
+  if(need==null){
+    // already at the ceiling: pay it out in scrap instead of nothing
+    const bonus=Math.round(90*(1+S.wave*.12)*S.diff.rw);
+    S.scrap+=bonus; S.earned+=bonus;
+    text(r.x,r.y,2.6,'+'+bonus,'#ffc247',17);
+    log('据点已达扩建上限 · 改为额外 +'+bonus+' 碎片');
+    return;
+  }
+  S.riftProgress=(S.riftProgress||0)+1;
+  if(S.riftProgress<need){
+    log('据点扩建 '+S.riftProgress+'/'+need+' · 再关闭 '+(need-S.riftProgress)+' 道裂隙可增加炮塔位');
+    toast('据点扩建 '+S.riftProgress+'/'+need,'#35e6ff');
+    UI.sync(); return;
+  }
+  S.riftProgress=0; S.slotEarned=(S.slotEarned||0)+1;
+  shock(CX,CY,.5,6,'#35e6ff',1.0,.3); shake(.5); sfx('level');
+  text(CX,CY,3,'据点扩建!','#35e6ff',20);
+  toast('据点扩建完成 · 炮塔上限 +1（现 '+towerSlots()+' 座）','#6ee7a8');
+  log('★ 据点扩建 · 炮塔上限提升至 '+towerSlots()+' 座');
+  UI.sync();
 }
 function updateRifts(dt){
   for(const r of S.rifts){

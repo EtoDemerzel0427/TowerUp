@@ -314,6 +314,7 @@ body.shortscreen .minimap{display:none}
   .tbtns{bottom:64px;right:8px} .tbtns.left{bottom:64px;left:8px}
 }
 
+.chip .mul.grow{color:var(--cyan);border-color:var(--cyan)}
 .refit{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
 .refit em{display:block;font-size:10.5px;letter-spacing:.08em;color:var(--dim2);margin-bottom:6px}
 .refitrow{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
